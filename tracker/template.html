@@ -1,0 +1,378 @@
+<title>Commission Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#15202e; --muted:#5b6878; --line:#d5dbe3;
+  --accent:#0d7a5f; --accent-soft:#dff1ea; --warn:#9a5b00; --warn-soft:#fdf0d9;
+  --danger:#b3261e; --field:#f7f9fb; --shadow:0 1px 2px rgba(21,32,46,.06);
+  --display:"Archivo",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f151d; --panel:#17202b; --ink:#e6ebf1; --muted:#95a3b4; --line:#2a3644;
+  --accent:#43c49b; --accent-soft:#16352c; --warn:#f0b35a; --warn-soft:#3a2b14;
+  --danger:#ff8a80; --field:#111922; --shadow:none; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f151d; --panel:#17202b; --ink:#e6ebf1; --muted:#95a3b4; --line:#2a3644;
+  --accent:#43c49b; --accent-soft:#16352c; --warn:#f0b35a; --warn-soft:#3a2b14;
+  --danger:#ff8a80; --field:#111922; --shadow:none; color-scheme:dark;}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:22px}
+h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:28px;font-weight:800;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:700}
+.sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;color:var(--muted);padding:6px 10px;font:500 13px var(--body);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.banner{padding:10px 14px;border-radius:8px;font-size:13.5px;background:var(--warn-soft);color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:2px;box-shadow:var(--shadow)}
+.stat .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.stat .big{font-family:var(--display);font-weight:800;font-size:26px;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
+.stat .av{font-size:13px;color:var(--muted)}
+.stat .av b{color:var(--ink);font-weight:500}
+.stat .range{font-size:12px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;box-shadow:var(--shadow)}
+.row{display:flex;flex-wrap:wrap;gap:12px}
+label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:500}
+input,select{font:14px var(--body);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.f-date{width:150px}.f-client{flex:1 1 220px}
+.line{border:1px solid var(--line);border-radius:9px;padding:12px;display:grid;gap:10px;background:var(--bg)}
+.line-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:10px}
+.line-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.line-grid,.line-nums{grid-template-columns:minmax(0,1fr)}}
+.line-out{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);align-items:center}
+.line-out strong{color:var(--accent);font-size:15px}
+.note{font-size:12.5px;padding:6px 9px;border-radius:6px;background:var(--warn-soft);color:var(--warn)}
+.btn{font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#07130f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#07130f}}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.link{border:0;background:none;color:var(--muted);padding:4px 6px;font-weight:500}
+.btn.danger{color:var(--danger)}
+.total{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px}
+.total .num{font-size:15px}
+.msg{font-size:13px;color:var(--accent)}
+.msg.err{color:var(--danger)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right}
+tr.sale td{font-weight:600}
+tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-style:dashed}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+.rules{font-size:13px;color:var(--muted);display:grid;gap:4px}
+.rules p{margin:0}
+@media (prefers-reduced-motion:no-preference){.btn,.seg button{transition:background .15s,color .15s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Commission Tracker</h1>
+      <p class="sub">Associate rates · advance only · first-year commission</p>
+    </div>
+    <div class="seg" role="group" aria-label="Week starts on">
+      <button type="button" id="wk-sun" aria-pressed="false">Week starts Sun</button>
+      <button type="button" id="wk-mon" aria-pressed="true">Mon</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="stats" aria-label="Totals">
+    <div class="stat"><span class="label">This week</span><span class="big" id="s-week">$0.00</span><span class="av">AV <b class="num" id="a-week">$0.00</b> · <span id="n-week">0 sales</span></span><span class="range" id="r-week"></span></div>
+    <div class="stat"><span class="label">This month</span><span class="big" id="s-month">$0.00</span><span class="av">AV <b class="num" id="a-month">$0.00</b> · <span id="n-month">0 sales</span></span><span class="range" id="r-month"></span></div>
+    <div class="stat"><span class="label">This year</span><span class="big" id="s-year">$0.00</span><span class="av">AV <b class="num" id="a-year">$0.00</b> · <span id="n-year">0 sales</span></span><span class="range" id="r-year"></span></div>
+    <div class="stat"><span class="label">All time</span><span class="big" id="s-all">$0.00</span><span class="av">AV <b class="num" id="a-all">$0.00</b> · <span id="n-all">0 sales</span></span><span class="range">Every sale logged</span></div>
+  </section>
+
+  <form class="panel" id="sale-form" autocomplete="off">
+    <h2>Log a sale</h2>
+    <div class="row">
+      <label class="f-date">Sale date<input type="date" id="f-date" required></label>
+      <label class="f-client">Client or note (optional)<input type="text" id="f-client" maxlength="80" placeholder="e.g. first name + last initial"></label>
+    </div>
+    <div id="lines" style="display:grid;gap:10px"></div>
+    <div><button type="button" class="btn" id="add-line">+ Add another product</button></div>
+    <div class="total">
+      <span>Sale total: commission <strong class="num" id="t-comm">$0.00</strong> · AV <span class="num" id="t-av">$0.00</span></span>
+      <span style="display:flex;gap:10px;align-items:center"><span class="msg" id="save-msg" role="status"></span><button type="submit" class="btn primary" id="save">Save sale</button></span>
+    </div>
+  </form>
+
+  <section class="panel">
+    <h2>Sales</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Date</th><th>Client / product</th><th class="r">AV</th><th class="r">Commission</th><th></th></tr></thead>
+        <tbody id="sales-body"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="sales-empty">No sales logged yet. Add one above and it shows up here and in the totals.</p>
+  </section>
+
+  <section class="rules">
+    <p><b>How commission is counted.</b> % rates: AV × your Associate rate × advance months ÷ 12, where AV = monthly premium × 12. $ rates (PMPM / Flat PM): $ × members × advance months. Products with no advance months listed (ACA) count 1 month. One-time products (annuity deposits): premium × rate.</p>
+    <p>Rates come from the printed commission sheet. You can change the rate or months on any line before saving if a number is different on your statement.</p>
+  </section>
+</div>
+
+<script>
+/*COMMISSION_JS*/
+</script>
+<script>
+var RATES = /*RATES*/;
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var money = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'});
+  var fmt = function(x){ return money.format(x || 0); };
+
+  // Rate lookup
+  RATES.forEach(function(r, i){ r.id = i; var p = parseRate(r.r); r.type = p.type; r.value = p.value; });
+  var carriers = Array.from(new Set(RATES.map(function(r){ return r.c; }))).sort(function(a,b){ return a.localeCompare(b); });
+  function rateLabel(r){
+    var parts = [r.n];
+    if (r.s) parts.push(r.s);
+    parts.push(r.g);
+    return parts.join(' · ') + '  —  ' + r.r;
+  }
+
+  // Dates (local calendar days as YYYY-MM-DD)
+  function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function parseYmd(s){ var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function niceDate(s){ return parseYmd(s).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+  var weekStart = 1; // Monday
+  try { var ws = localStorage.getItem('weekStart'); if (ws === '0' || ws === '1') weekStart = +ws; } catch(e){}
+  function setWeekStart(v){
+    weekStart = v;
+    $('wk-sun').setAttribute('aria-pressed', v === 0 ? 'true' : 'false');
+    $('wk-mon').setAttribute('aria-pressed', v === 1 ? 'true' : 'false');
+    try { localStorage.setItem('weekStart', String(v)); } catch(e){}
+    renderTotals();
+  }
+  $('wk-sun').onclick = function(){ setWeekStart(0); };
+  $('wk-mon').onclick = function(){ setWeekStart(1); };
+
+  function periods(){
+    var now = new Date(); now.setHours(0,0,0,0);
+    var diff = (now.getDay() - weekStart + 7) % 7;
+    var ws = new Date(now); ws.setDate(now.getDate() - diff);
+    var we = new Date(ws); we.setDate(ws.getDate() + 6);
+    var y = now.getFullYear(), m = now.getMonth();
+    return {
+      week: [ymd(ws), ymd(we)],
+      month: [ymd(new Date(y, m, 1)), ymd(new Date(y, m+1, 0))],
+      year: [y + '-01-01', y + '-12-31']
+    };
+  }
+
+  // Sales storage: shared db when the viewer provides it, browser storage otherwise
+  var sales = [];
+  var store = null; // {add(doc), remove(id)}
+  function banner(text){ var b = $('banner'); b.textContent = text; b.hidden = !text; }
+
+  function useLocal(reason){
+    banner(reason);
+    function load(){ try { return JSON.parse(localStorage.getItem('sales') || '[]'); } catch(e){ return []; } }
+    function save(list){ localStorage.setItem('sales', JSON.stringify(list)); }
+    sales = load(); renderAll();
+    store = {
+      add: function(doc){ var list = load(); doc.id = 'l' + Date.now(); list.push(doc); save(list); sales = list; renderAll(); return Promise.resolve(); },
+      remove: function(id){ var list = load().filter(function(s){ return s.id !== id; }); save(list); sales = list; renderAll(); return Promise.resolve(); }
+    };
+  }
+
+  function connect(){
+    var c = window.claude;
+    if (!c || typeof c.use !== 'function') { useLocal('Sales are only being saved in this browser. Open the tracker on claude.ai to save them to your account.'); return; }
+    c.use('db').then(function(db){
+      if (!db) { useLocal('Sales are only being saved in this browser. Open the tracker on claude.ai to save them to your account.'); return; }
+      var col = db.collection('sales');
+      store = {
+        add: function(doc){ return col.add(doc); },
+        remove: function(id){ return col.doc(id).delete(); }
+      };
+      col.onSnapshot(function(snap){
+        sales = snap.docs.map(function(d){ var o = Object.assign({}, d.data()); o.id = d.id; return o; });
+        renderAll();
+      }, function(err){
+        banner('Could not load your saved sales (' + err.code + '). Reload the page to try again.');
+      });
+    }, function(){ useLocal('Sales are only being saved in this browser.'); });
+  }
+
+  // Totals
+  function sum(list){
+    return list.reduce(function(t, s){ t.c += s.commission || 0; t.a += s.av || 0; t.n += 1; return t; }, {c:0,a:0,n:0});
+  }
+  function show(key, t){ $('s-'+key).textContent = fmt(cents(t.c)); $('a-'+key).textContent = fmt(cents(t.a)); $('n-'+key).textContent = t.n + (t.n === 1 ? ' sale' : ' sales'); }
+  function renderTotals(){
+    var p = periods();
+    ['week','month','year'].forEach(function(k){
+      var r = p[k];
+      show(k, sum(sales.filter(function(s){ return s.date >= r[0] && s.date <= r[1]; })));
+      $('r-'+k).textContent = niceDate(r[0]) + ' – ' + niceDate(r[1]);
+    });
+    show('all', sum(sales));
+  }
+
+  // Sales table
+  var pendingDelete = null;
+  function renderTable(){
+    var body = $('sales-body'); body.textContent = '';
+    var list = sales.slice().sort(function(a,b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.createdAt || 0) - (a.createdAt || 0); });
+    $('sales-empty').hidden = list.length > 0;
+    list.forEach(function(s){
+      var tr = document.createElement('tr'); tr.className = 'sale';
+      var td = function(text, cls){ var e = document.createElement('td'); if (cls) e.className = cls; e.textContent = text; tr.appendChild(e); return e; };
+      td(niceDate(s.date));
+      td(s.client || (s.lines.length + ' product' + (s.lines.length === 1 ? '' : 's')));
+      td(fmt(s.av), 'r num'); td(fmt(s.commission), 'r num');
+      var act = td('', 'r');
+      var del = document.createElement('button'); del.type = 'button'; del.className = 'btn link danger';
+      del.textContent = pendingDelete === s.id ? 'Confirm delete' : 'Delete';
+      del.onclick = function(){
+        if (pendingDelete !== s.id) { pendingDelete = s.id; renderTable(); return; }
+        pendingDelete = null; del.disabled = true;
+        store.remove(s.id).catch(function(e){ banner('Could not delete that sale (' + (e && e.code || 'error') + ').'); renderTable(); });
+      };
+      act.appendChild(del);
+      body.appendChild(tr);
+      s.lines.forEach(function(l){
+        var d = document.createElement('tr'); d.className = 'detail';
+        var cells = ['', l.carrier + ' · ' + l.product + (l.states ? ' (' + l.states + ')' : '') + ' — ' + l.formula, fmt(l.av), fmt(l.commission), ''];
+        cells.forEach(function(t, i){ var e = document.createElement('td'); e.textContent = t; if (i === 2 || i === 3) e.className = 'r num'; d.appendChild(e); });
+        body.appendChild(d);
+      });
+    });
+  }
+  function renderAll(){ renderTotals(); renderTable(); }
+
+  // Sale form
+  var lineSeq = 0;
+  function addLine(){
+    var n = ++lineSeq;
+    var box = document.createElement('div'); box.className = 'line';
+    box.innerHTML =
+      '<div class="line-grid">' +
+        '<label>Carrier<select id="c'+n+'"><option value="">Choose carrier</option></select></label>' +
+        '<label>Product<select id="p'+n+'" disabled><option value="">Choose product</option></select></label>' +
+      '</div>' +
+      '<div class="line-nums">' +
+        '<label><span id="plbl'+n+'">Monthly premium ($)</span><input id="m'+n+'" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></label>' +
+        '<label>Rate<input id="r'+n+'" type="number" inputmode="decimal" min="0" step="0.01"></label>' +
+        '<label>Advance months<input id="a'+n+'" type="number" inputmode="numeric" min="0" max="12" step="1"></label>' +
+        '<label id="memwrap'+n+'" hidden>Members on plan<input id="mem'+n+'" type="number" inputmode="numeric" min="1" step="1" value="1"></label>' +
+      '</div>' +
+      '<div class="note" id="note'+n+'" hidden></div>' +
+      '<div class="line-out"><span id="fx'+n+'">Pick a product to see its rate.</span><span>AV <span class="num" id="lav'+n+'">$0.00</span> · <strong class="num" id="lc'+n+'">$0.00</strong></span></div>' +
+      '<div><button type="button" class="btn link danger" id="x'+n+'">Remove product</button></div>';
+    $('lines').appendChild(box);
+    var cs = $('c'+n), ps = $('p'+n);
+    carriers.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; cs.appendChild(o); });
+    cs.onchange = function(){
+      ps.textContent = ''; var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Choose product'; ps.appendChild(o0);
+      RATES.filter(function(r){ return r.c === cs.value; }).forEach(function(r){ var o = document.createElement('option'); o.value = r.id; o.textContent = rateLabel(r); ps.appendChild(o); });
+      ps.disabled = !cs.value; ps.value = ''; pick();
+    };
+    function pick(){
+      var r = RATES[ps.value];
+      box.rate = r || null;
+      if (r) {
+        $('r'+n).value = r.type === '$' ? r.value : cents(r.value * 100);
+        $('a'+n).value = defaultMonths(r);
+        $('r'+n).parentNode.firstChild.textContent = r.type === '$' ? 'Rate ($ per member per month)' : 'Rate (%)';
+        $('memwrap'+n).hidden = r.type !== '$';
+        $('plbl'+n).textContent = r.p === 'One-time' ? 'One-time premium / deposit ($)' : 'Monthly premium ($)';
+        $('a'+n).disabled = r.p === 'One-time';
+        var notes = [];
+        if (r.a == null) notes.push('No advance months on the sheet for this product, so it counts 1 month. Change it if you are paid differently.');
+        if (r.s && r.s.indexOf('…') !== -1) notes.push('This state list was cut off on the printout (' + r.s + '). Check your client\'s state is really on it.');
+        if (r.p === 'One-time') notes.push('One-time product: commission is the deposit × rate, and AV is the deposit.');
+        $('note'+n).textContent = notes.join(' '); $('note'+n).hidden = !notes.length;
+      } else { $('note'+n).hidden = true; $('memwrap'+n).hidden = true; }
+      update();
+    }
+    ps.onchange = pick;
+    ['m','r','a','mem'].forEach(function(k){ $(k+n).oninput = update; });
+    $('x'+n).onclick = function(){ box.remove(); if (!$('lines').children.length) addLine(); update(); };
+    box.read = function(){
+      var r = box.rate; if (!r) return null;
+      var rateIn = parseFloat($('r'+n).value);
+      var line = {
+        rateType: r.type, rate: r.type === '$' ? rateIn : rateIn / 100, payType: r.p,
+        premium: parseFloat($('m'+n).value), members: r.type === '$' ? parseInt($('mem'+n).value, 10) : 1,
+        months: r.p === 'One-time' ? 0 : parseFloat($('a'+n).value)
+      };
+      var out = calcLine(line);
+      return { r: r, line: line, out: out };
+    };
+    box.fx = function(res){
+      $('fx'+n).textContent = res ? res.out.formula : 'Pick a product to see its rate.';
+      $('lav'+n).textContent = fmt(res ? res.out.av : 0); $('lc'+n).textContent = fmt(res ? res.out.commission : 0);
+    };
+    update();
+  }
+  function update(){
+    var tc = 0, ta = 0;
+    Array.from($('lines').children).forEach(function(b){ var res = b.read(); b.fx(res); if (res) { tc += res.out.commission; ta += res.out.av; } });
+    $('t-comm').textContent = fmt(cents(tc)); $('t-av').textContent = fmt(cents(ta));
+  }
+  $('add-line').onclick = addLine;
+
+  function resetForm(){ $('lines').textContent = ''; $('f-client').value = ''; addLine(); }
+
+  var saving = false;
+  $('sale-form').onsubmit = function(ev){
+    ev.preventDefault();
+    if (saving || !store) return;
+    var msg = $('save-msg'); msg.className = 'msg';
+    var date = $('f-date').value;
+    var lines = [], problem = '';
+    Array.from($('lines').children).forEach(function(b, i){
+      var res = b.read();
+      if (!res) { problem = problem || 'Pick a product for line ' + (i+1) + '.'; return; }
+      var l = res.line;
+      if (!(l.premium > 0)) problem = problem || 'Enter the premium for ' + res.r.n + '.';
+      if (!(l.rate >= 0) || isNaN(l.rate)) problem = problem || 'Enter the rate for ' + res.r.n + '.';
+      if (res.r.p !== 'One-time' && !(l.months >= 0)) problem = problem || 'Enter advance months for ' + res.r.n + '.';
+      if (l.rateType === '$' && !(l.members >= 1)) problem = problem || 'Enter members for ' + res.r.n + '.';
+      lines.push({
+        carrier: res.r.c, grouping: res.r.g, product: res.r.n, states: res.r.s, payYears: res.r.p, sheetRate: res.r.r, sheetPage: res.r.pg,
+        rateType: l.rateType, rate: l.rate, months: l.months, members: l.members, premium: l.premium,
+        av: res.out.av, commission: res.out.commission, formula: res.out.formula
+      });
+    });
+    if (!date) problem = 'Pick the sale date.';
+    if (problem) { msg.className = 'msg err'; msg.textContent = problem; return; }
+    var doc = {
+      date: date, client: $('f-client').value.trim(), lines: lines, createdAt: Date.now(),
+      av: cents(lines.reduce(function(t,l){ return t + l.av; }, 0)),
+      commission: cents(lines.reduce(function(t,l){ return t + l.commission; }, 0))
+    };
+    saving = true; $('save').disabled = true; msg.textContent = 'Saving…';
+    store.add(doc).then(function(){
+      msg.textContent = 'Saved ' + fmt(doc.commission) + ' sale.'; resetForm();
+    }, function(e){
+      msg.className = 'msg err';
+      msg.textContent = e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old sales to save new ones.' : 'Could not save (' + (e && e.code || 'error') + '). Try again.';
+    }).then(function(){ saving = false; $('save').disabled = false; });
+  };
+
+  $('f-date').value = ymd(new Date());
+  setWeekStart(weekStart);
+  addLine();
+  renderAll();
+  connect();
+})();
+</script>
