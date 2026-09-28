@@ -32,6 +32,7 @@ DetectHiddenWindows false
 ;   and calls the next lead. Keeps going until someone ANSWERS, then beeps and stops.
 ;   Your speakers/headset stay muted while it rings and turn back on the moment the
 ;   call is picked up (person OR voicemail - you decide what to do).
+;   A lead with NO email button is a special lead: F11 stops without calling it.
 ; Caps Lock, F12 and F11 each have their own quick setup, done the first time the key is tapped.
 ; Esc = stop a run or cancel setup.      Ctrl+Alt+X = quit the script.
 ; ======================================================
@@ -81,6 +82,7 @@ global AutoDialSteps := [
 global RingTimeout   := 20000   ; ms of ringing with no answer before hanging up (most voicemail picks up after ~25s)
 global DialWait      := 8000    ; ms to wait for ringing to start after clicking the green phone
 global AnsweredConfirmMs := 800 ; ringing sign must stay gone this long (red button still there) = answered
+global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
 
 ; Which key runs each automation (shown in messages)
 global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12", "autodial", "F11")
@@ -325,17 +327,24 @@ DoAutoDial() {
     ring := LoadPoints(AutoDialSteps, "autodial")
     if !call || !hang || !ring
         return DoAutoDialSetup()
-    ring := ring["ringing"], red := hang["hangup"], phone := call["call"]
+    ; The email envelope (from the Win setup) tells normal leads from special
+    ; leads: special leads have no email button, and you dial those yourself.
+    env := LoadPoints([EmailSteps[3]])
+    if !env {
+        Flash("First set up the Win key (email):`ntap Win once and follow the yellow box.`nF11 uses its envelope to spot special leads.", 5000)
+        return
+    }
+    ring := ring["ringing"], red := hang["hangup"], phone := call["call"], env := env["email"]
     KeyWait "F11"
     Log("RUN F11 (auto-dial)")
     SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
     try
-        return AutoDialLoop(phone, red, ring)
+        return AutoDialLoop(phone, red, ring, env)
     finally
         SpeakersMuted(false)    ; however it stops, you always get your sound back
 }
 
-AutoDialLoop(phone, red, ring) {
+AutoDialLoop(phone, red, ring, env) {
     n := 0
     afterNoContact := false
     Loop {
@@ -344,10 +353,17 @@ AutoDialLoop(phone, red, ring) {
         ; 1. Start the call (unless VanillaSoft already started one by itself)
         if SpotVisible(red) {
             Log(" call " n ": a call is already going, not clicking the phone")
+            if !EmailShowing(env)
+                return Stopped() ? Fail("") : SpecialLead(true)
         } else {
             if StaysVisible(ring, 500)
                 return BadRingingSpot("it shows even with no call going")
-            if !DialLead(phone, red, afterNoContact)
+            r := DialLead(phone, red, env, afterNoContact)
+            if (r = "special")
+                return Stopped() ? Fail("") : SpecialLead(false)
+            if (r = "auto" && !EmailShowing(env))
+                return Stopped() ? Fail("") : SpecialLead(true)
+            if !r
                 return Fail("green phone icon")
         }
         ; 2. Wait for it to start ringing
@@ -382,23 +398,27 @@ AutoDialLoop(phone, red, ring) {
 
 ; Click the green phone once the lead's page is ready. Right after No Contact the
 ; old lead's phone icon is still showing, so first wait for the page to change.
-DialLead(p, red, afterNoContact) {
+; No email button on the new lead = special lead: don't call it.
+; Returns "clicked", "auto" (a call started by itself), "special", or "" (failed).
+DialLead(p, red, env, afterNoContact) {
     start := A_TickCount
     seenGone := !afterNoContact
     nudge := 0
     MouseMove p[1], p[2]
     while (A_TickCount - start < ReloadWait + Timeout) {
         if Stopped()
-            return false
+            return ""
         if SpotVisible(red) {       ; VanillaSoft dialed the next lead by itself
             Log("  a call started by itself, not clicking the phone")
-            return true
+            return "auto"
         }
         if SpotVisible(p) && (seenGone || A_TickCount - start > ReloadWait) {
+            if !EmailShowing(env)
+                return "special"
             Sleep Settle
             ClickAt(p[1], p[2], true)
             Log("  phone clicked after " (A_TickCount - start) "ms")
-            return true
+            return "clicked"
         }
         if !SpotVisible(p)
             seenGone := true
@@ -407,7 +427,33 @@ DialLead(p, red, afterNoContact) {
         Sleep 10
     }
     Log("  NOT FOUND at " p[1] "," p[2] ": saw " SeenAt(p) ", wanted " Hex(p[3]) " or " Hex(p[4]))
+    return ""
+}
+
+; Is the lead's email envelope there? Hovers it like the Win run does and gives
+; the page up to EnvelopeWait ms to finish drawing it.
+EmailShowing(env) {
+    stopAt := A_TickCount + EnvelopeWait
+    nudge := 0
+    MouseMove env[1], env[2]
+    Loop {
+        if SpotVisible(env)
+            return true
+        if Stopped() || A_TickCount > stopAt
+            break
+        if (Mod(A_Index, 6) = 0)    ; wiggle 1px so Chrome refreshes the hover color
+            MouseMove env[1] + (nudge := !nudge), env[2]
+        Sleep 10
+    }
+    Log("  no email button at " env[1] "," env[2] ": saw " SeenAt(env) ", wanted " Hex(env[3]) " or " Hex(env[4]))
     return false
+}
+
+SpecialLead(calling) {
+    if calling
+        Alert("SPECIAL LEAD (no email button)`nIt's already dialing - this one's yours.", "special lead, a call was already going")
+    else
+        Alert("SPECIAL LEAD (no email button)`nNot called - dial this one yourself.", "special lead, not called")
 }
 
 WaitRinging(ring) {
