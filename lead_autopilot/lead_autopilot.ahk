@@ -30,6 +30,8 @@ DetectHiddenWindows false
 ; F12: click the green phone icon next to the lead's number (call them).
 ; F11: AUTO-DIAL. Calls the lead; if nobody picks up in time, hangs up, clicks No Contact,
 ;   and calls the next lead. Keeps going until someone ANSWERS, then beeps and stops.
+;   Your speakers/headset stay muted while it rings and turn back on the moment the
+;   call is picked up (person OR voicemail - you decide what to do).
 ; Caps Lock, F12 and F11 each have their own quick setup, done the first time the key is tapped.
 ; Esc = stop a run or cancel setup.      Ctrl+Alt+X = quit the script.
 ; ======================================================
@@ -326,10 +328,19 @@ DoAutoDial() {
     ring := ring["ringing"], red := hang["hangup"], phone := call["call"]
     KeyWait "F11"
     Log("RUN F11 (auto-dial)")
+    SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
+    try
+        return AutoDialLoop(phone, red, ring)
+    finally
+        SpeakersMuted(false)    ; however it stops, you always get your sound back
+}
+
+AutoDialLoop(phone, red, ring) {
     n := 0
     afterNoContact := false
     Loop {
         n += 1
+        SpeakersMuted(true)
         ; 1. Start the call (unless VanillaSoft already started one by itself)
         if SpotVisible(red) {
             Log(" call " n ": a call is already going, not clicking the phone")
@@ -433,6 +444,7 @@ WatchCall(ring, red, n) {
         } else {
             ; Ringing stopped. Red button still there for a moment = picked up.
             ; Red button gone too = the call ended without an answer.
+            SpeakersMuted(false)        ; right away, so you hear their "Hello?"
             confirmUntil := A_TickCount + AnsweredConfirmMs
             back := false
             while (A_TickCount < confirmUntil) {
@@ -441,6 +453,7 @@ WatchCall(ring, red, n) {
                 if !SpotVisible(red)
                     return "ended"
                 if SpotVisible(ring) {  ; just a flicker, still ringing
+                    SpeakersMuted(true)
                     back := true
                     break
                 }
@@ -476,8 +489,52 @@ Status(n, what) => ToolTip("AUTO-DIAL  call " n ": " what "`n(Esc or move the mo
 
 Alert(msg, why) {
     Log("STOPPED: " why)
+    SpeakersMuted(false)
     Flash(msg, 6000)
     SoundBeep 1500, 120
+}
+
+; Mute/unmute the speakers/headset only (never the microphone). Covers both the
+; normal sound device and the one Windows uses for calls, in case they differ.
+; Only ever unmutes what this script muted.
+global MutedByUs := []
+OnExit((*) => SpeakersMuted(false))     ; quitting mid-run never leaves you muted
+SpeakersMuted(mute) {
+    global MutedByUs
+    if !mute {
+        for vol in MutedByUs
+            try ComCall(14, vol, "int", 0, "ptr", 0)            ; SetMute(false)
+        if MutedByUs.Length
+            Log("  sound back on")
+        MutedByUs := []
+        return
+    }
+    if MutedByUs.Length
+        return
+    for role in [0, 2] {                                        ; 0 = normal, 2 = calls
+        try {
+            vol := SpeakerVolume(role)
+            ComCall(15, vol, "int*", &was := 0)                 ; GetMute
+            if was
+                continue                                        ; already muted by you: leave it alone
+            ComCall(14, vol, "int", 1, "ptr", 0)                ; SetMute(true)
+            MutedByUs.Push(vol)
+        } catch as e
+            Log("  couldn't mute sound device (" e.Message ")")
+    }
+    if MutedByUs.Length
+        Log("  sound muted")
+}
+
+; The volume control of the default playback device for a role (IAudioEndpointVolume)
+SpeakerVolume(role) {
+    enum := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}")
+    ComCall(4, enum, "int", 0, "int", role, "ptr*", &dev := 0)  ; GetDefaultAudioEndpoint(eRender, role)
+    iid := Buffer(16)
+    DllCall("ole32\CLSIDFromString", "wstr", "{5CDF2C82-841E-4546-9722-0CF74078229A}", "ptr", iid)
+    try ComCall(3, dev, "ptr", iid, "uint", 23, "ptr", 0, "ptr*", &vol := 0)   ; Activate(IAudioEndpointVolume)
+    finally ObjRelease(dev)
+    return ComValue(13, vol)
 }
 
 ; Click a spot. With activate: first bring the window under it to the front,
