@@ -67,6 +67,7 @@ global HangupSteps := [
     ["nocontact", "Wait for the page to reload.`nThen click 'No Contact' (bottom of the blue list).", "No Contact button", true]
 ]
 global ReloadWait := 3000       ; ms max to wait for the page to reload after hanging up
+global HangupSkipMs := 3000     ; red hang-up button not found in this long = call's already over, go to No Contact
 
 ; Third automation (F12): call the lead
 global CallSteps := [
@@ -273,11 +274,21 @@ DoClicks(steps, section) {
     }
     KeyWait "Shift"             ; don't Shift-click by accident
     Log("RUN " KeyNames[section])
+    skippedHangup := false
     for step in steps {
         p := pts[step[1]]
-        waitReload := step.Length >= 4 && step[4]
+        waitReload := step.Length >= 4 && step[4] && !skippedHangup
         Log(" " step[1] ": looking")
-        if !WaitForSpot(p, waitReload, waitReload ? ReloadWait : AmbiguousCap)
+        if (step[1] = "hangup") {
+            ; No red button = most likely the call already ended: skip to No Contact
+            if !WaitForSpot(p, false, AmbiguousCap, HangupSkipMs) {
+                if Stopped()
+                    return Fail("")
+                Log(" hangup: not there, skipping to the next step")
+                skippedHangup := true   ; nothing was hung up, so no reload to wait for
+                continue
+            }
+        } else if !WaitForSpot(p, waitReload, waitReload ? ReloadWait : AmbiguousCap)
             return Fail(step[3])
         Sleep Settle
         ClickAt(p[1], p[2], true)
@@ -787,9 +798,10 @@ SeenAt(p) {
 ; Put the mouse on the spot (setup saved the hovered color) and wait for the color.
 ; ambiguous = the spot looked ready before the page changed, so first wait to see
 ; it change (at most AmbiguousCap ms).
-WaitForSpot(p, ambiguous := false, cap := AmbiguousCap) {
+WaitForSpot(p, ambiguous := false, cap := AmbiguousCap, limit := 0) {
     start := A_TickCount
-    limit := Max(Timeout, cap + Timeout)
+    if !limit
+        limit := Max(Timeout, cap + Timeout)
     seenGone := !ambiguous
     nudge := 0
     MouseMove p[1], p[2]
