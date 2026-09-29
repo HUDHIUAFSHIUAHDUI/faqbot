@@ -28,12 +28,7 @@ DetectHiddenWindows false
 ; CAPS LOCK: click the red hang-up button, wait for the page to reload, click No Contact.
 ;   Shift+Caps Lock still turns caps on/off.
 ; F12: click the green phone icon next to the lead's number (call them).
-; F11: AUTO-DIAL. Calls the lead; if nobody picks up in time, hangs up, clicks No Contact,
-;   and calls the next lead. Keeps going until someone ANSWERS, then beeps and stops.
-;   Your speakers/headset stay muted while it rings and turn back on the moment the
-;   call is picked up (person OR voicemail - you decide what to do).
-;   A lead with NO email button is a special lead: F11 stops without calling it.
-; Caps Lock, F12 and F11 each have their own quick setup, done the first time the key is tapped.
+; Caps Lock and F12 each have their own quick setup, done the first time the key is tapped.
 ; Esc = stop a run or cancel setup.      Ctrl+Alt+X = quit the script.
 ; ======================================================
 
@@ -67,26 +62,14 @@ global HangupSteps := [
     ["nocontact", "Wait for the page to reload.`nThen click 'No Contact' (bottom of the blue list).", "No Contact button", true]
 ]
 global ReloadWait := 3000       ; ms max to wait for the page to reload after hanging up
-global HangupSkipMs := 3000     ; red hang-up button not found in this long = call's already over, go to No Contact
 
 ; Third automation (F12): call the lead
 global CallSteps := [
     ["call", "Click the GREEN phone icon next to the lead's number.", "green phone icon"]
 ]
 
-; Fourth automation (F11): keep calling leads until someone answers.
-; Setup records one spot on the softphone that only shows while a call is RINGING.
-; Ringing sign gone + red hang-up button still there = someone picked up.
-global AutoDialSteps := [
-    ["ringing", "The lead is being called now (tap F12 to call again).`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.", "ringing sign"]
-]
-global RingTimeout   := 20000   ; ms of ringing with no answer before hanging up (most voicemail picks up after ~25s)
-global DialWait      := 8000    ; ms to wait for ringing to start after clicking the green phone
-global AnsweredConfirmMs := 800 ; ringing sign must stay gone this long (red button still there) = answered
-global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
-
 ; Which key runs each automation (shown in messages)
-global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12", "autodial", "F11")
+global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12")
 
 global IniFile   := A_ScriptDir "\lead_points.ini"
 global LogFile   := A_ScriptDir "\lead_autopilot_log.txt"   ; what each run saw and did (for fixing misses)
@@ -101,9 +84,8 @@ global StartupLnk := A_Startup "\Lead Autopilot.lnk"
 A_TrayMenu.Insert("1&", "Run Setup (Win: email)", (*) => StartSetup())
 A_TrayMenu.Insert("2&", "Run Setup (Caps Lock: hang up + No Contact)", (*) => StartSetup(HangupSteps, "hangup2"))
 A_TrayMenu.Insert("3&", "Run Setup (F12: call)", (*) => StartSetup(CallSteps, "call"))
-A_TrayMenu.Insert("4&", "Run Setup (F11: auto-dial)", (*) => DoAutoDialSetup())
-A_TrayMenu.Insert("5&", "Start with Windows", ToggleStartup)
-A_TrayMenu.Insert("6&")
+A_TrayMenu.Insert("4&", "Start with Windows", ToggleStartup)
+A_TrayMenu.Insert("5&")
 if FileExist(StartupLnk)
     A_TrayMenu.Check("Start with Windows")
 
@@ -166,18 +148,11 @@ RecordClick() {
     idle := PixelGetColor(x, y)
     MouseMove x, y
     Sleep 150
-    if (key = "ringing" && !Distinct(c) && !Distinct(idle)) {
-        ; Plain white/gray is everywhere, so it can't tell ringing from talking
-        ToolTip "That spot is plain white or gray.`nClick right ON the colored part or the dark text of the ringing sign.`n`n(Esc = cancel)", 10, 10
-        return
-    }
     SetupTemp[key] := x "," y "," c "," idle
     Log("SETUP " SetupSection "/" key " at " x "," y " hover=" c " idle=" idle)
     if (key = "scrollbar") {    ; scroll exactly like a run will, so Send ends up in the same spot
         ToolTip "Scrolling down...", 10, 10
         FastScroll(x, y)
-    } else if (key = "ringing") {
-        ; only looking, not clicking: leave the call alone
     } else
         ClickAt(x, y, SetupSection != "points")   ; now do the real click
     SoundBeep 1200, 60
@@ -190,10 +165,7 @@ RecordClick() {
         SetupStep := 0
         for k, v in SetupTemp
             IniWrite v, IniFile, SetupSection, k
-        if (SetupSection = "autodial")
-            Flash("Setup saved!`nHang up this call (Caps Lock), then tap F11 to start auto-dialing.", 5000)
-        else
-            Flash("Setup saved!`nNext time just tap the " KeyNames[SetupSection] " key.", 4000)
+        Flash("Setup saved!`nNext time just tap the " KeyNames[SetupSection] " key.", 4000)
         return
     }
     SetupStep += 1
@@ -265,7 +237,7 @@ DoCall() => DoClicks(CallSteps, "call")
 DoClicks(steps, section) {
     global Abort := false
     global UserMoved := false
-    if SetupStep && !(SetupSection = "autodial" && section = "call")   ; F12 still calls during F11 setup
+    if SetupStep
         return
     pts := LoadPoints(steps, section)
     if !pts {                   ; first time: go straight into setup for this key
@@ -274,21 +246,11 @@ DoClicks(steps, section) {
     }
     KeyWait "Shift"             ; don't Shift-click by accident
     Log("RUN " KeyNames[section])
-    skippedHangup := false
     for step in steps {
         p := pts[step[1]]
-        waitReload := step.Length >= 4 && step[4] && !skippedHangup
+        waitReload := step.Length >= 4 && step[4]
         Log(" " step[1] ": looking")
-        if (step[1] = "hangup") {
-            ; No red button = most likely the call already ended: skip to No Contact
-            if !WaitForSpot(p, false, AmbiguousCap, HangupSkipMs) {
-                if Stopped()
-                    return Fail("")
-                Log(" hangup: not there, skipping to the next step")
-                skippedHangup := true   ; nothing was hung up, so no reload to wait for
-                continue
-            }
-        } else if !WaitForSpot(p, waitReload, waitReload ? ReloadWait : AmbiguousCap)
+        if !WaitForSpot(p, waitReload, waitReload ? ReloadWait : AmbiguousCap)
             return Fail(step[3])
         Sleep Settle
         ClickAt(p[1], p[2], true)
@@ -306,292 +268,6 @@ DoClicks(steps, section) {
     }
     Log("RUN done")
     Flash("Done ✔")
-    return true
-}
-
-; ---------- AUTO-DIAL (F11) ----------
-; Call -> watch the ringing sign -> nobody answered in time? hang up + No Contact,
-; then call the next lead. Stops the moment someone picks up.
-; When unsure what's happening it STOPS instead of hanging up, so a real person
-; is never hung up on because of a guess.
-*F11::TriggerRun(DoAutoDial)
-
-DoAutoDialSetup() {
-    global Abort := false
-    global UserMoved := false
-    if !LoadPoints(CallSteps, "call") || !LoadPoints(HangupSteps, "hangup2") {
-        Flash("First set up F12 (call) and Caps Lock (hang up):`ntap each key once and follow the yellow box.", 5000)
-        return
-    }
-    Log("SETUP autodial: calling so the ringing sign shows")
-    DoCall()                    ; start a call so there's a ringing sign to point at
-    StartSetup(AutoDialSteps, "autodial")
-}
-
-DoAutoDial() {
-    global Abort := false
-    global UserMoved := false
-    if SetupStep
-        return
-    call := LoadPoints(CallSteps, "call")
-    hang := LoadPoints(HangupSteps, "hangup2")
-    ring := LoadPoints(AutoDialSteps, "autodial")
-    if !call || !hang || !ring
-        return DoAutoDialSetup()
-    ; The email envelope (from the Win setup) tells normal leads from special
-    ; leads: special leads have no email button, and you dial those yourself.
-    env := LoadPoints([EmailSteps[3]])
-    if !env {
-        Flash("First set up the Win key (email):`ntap Win once and follow the yellow box.`nF11 uses its envelope to spot special leads.", 5000)
-        return
-    }
-    ring := ring["ringing"], red := hang["hangup"], phone := call["call"], env := env["email"]
-    KeyWait "F11"
-    Log("RUN F11 (auto-dial)")
-    SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
-    try
-        return AutoDialLoop(phone, red, ring, env)
-    finally
-        SpeakersMuted(false)    ; however it stops, you always get your sound back
-}
-
-AutoDialLoop(phone, red, ring, env) {
-    n := 0
-    afterNoContact := false
-    Loop {
-        n += 1
-        SpeakersMuted(true)
-        ; 1. Start the call (unless VanillaSoft already started one by itself)
-        if SpotVisible(red) {
-            Log(" call " n ": a call is already going, not clicking the phone")
-            if !EmailShowing(env)
-                return Stopped() ? Fail("") : SpecialLead(true)
-        } else {
-            if StaysVisible(ring, 500)
-                return BadRingingSpot("it shows even with no call going")
-            r := DialLead(phone, red, env, afterNoContact)
-            if (r = "special")
-                return Stopped() ? Fail("") : SpecialLead(false)
-            if (r = "auto" && !EmailShowing(env))
-                return Stopped() ? Fail("") : SpecialLead(true)
-            if !r
-                return Fail("green phone icon")
-        }
-        ; 2. Wait for it to start ringing
-        Status(n, "dialing...")
-        if !WaitRinging(ring) {
-            if Stopped()
-                return Fail("")
-            if SpotVisible(red)
-                return Alert("Couldn't see it ringing - check the call!", "never saw the ringing sign, but the call is up")
-            return Fail("a call starting (the ringing sign never showed)")
-        }
-        ; 3. Watch until it's answered, ends, or rings too long
-        result := WatchCall(ring, red, n)
-        Log(" call " n ": " result)
-        switch result {
-            case "answered":
-                return Alert("SOMEONE ANSWERED - go!", "answered on call " n)
-            case "noanswer":
-                if !DoClicks(HangupSteps, "hangup2")
-                    return
-            case "ended":           ; they declined / busy: the call is already over
-                if !DoClicks([HangupSteps[2]], "hangup2")
-                    return
-            case "badspot":
-                return BadRingingSpot("it stayed on after the call ended")
-            default:                ; Esc / mouse moved
-                return Fail("")
-        }
-        afterNoContact := true
-    }
-}
-
-; Click the green phone once the lead's page is ready. Right after No Contact the
-; old lead's phone icon is still showing, so first wait for the page to change.
-; No email button on the new lead = special lead: don't call it.
-; Returns "clicked", "auto" (a call started by itself), "special", or "" (failed).
-DialLead(p, red, env, afterNoContact) {
-    start := A_TickCount
-    seenGone := !afterNoContact
-    nudge := 0
-    MouseMove p[1], p[2]
-    while (A_TickCount - start < ReloadWait + Timeout) {
-        if Stopped()
-            return ""
-        if SpotVisible(red) {       ; VanillaSoft dialed the next lead by itself
-            Log("  a call started by itself, not clicking the phone")
-            return "auto"
-        }
-        if SpotVisible(p) && (seenGone || A_TickCount - start > ReloadWait) {
-            if !EmailShowing(env)
-                return "special"
-            Sleep Settle
-            ClickAt(p[1], p[2], true)
-            Log("  phone clicked after " (A_TickCount - start) "ms")
-            return "clicked"
-        }
-        if !SpotVisible(p)
-            seenGone := true
-        if (Mod(A_Index, 6) = 0)    ; wiggle 1px so Chrome refreshes the hover color
-            MouseMove p[1] + (nudge := !nudge), p[2]
-        Sleep 10
-    }
-    Log("  NOT FOUND at " p[1] "," p[2] ": saw " SeenAt(p) ", wanted " Hex(p[3]) " or " Hex(p[4]))
-    return ""
-}
-
-; Is the lead's email envelope there? Hovers it like the Win run does and gives
-; the page up to EnvelopeWait ms to finish drawing it.
-EmailShowing(env) {
-    stopAt := A_TickCount + EnvelopeWait
-    nudge := 0
-    MouseMove env[1], env[2]
-    Loop {
-        if SpotVisible(env)
-            return true
-        if Stopped() || A_TickCount > stopAt
-            break
-        if (Mod(A_Index, 6) = 0)    ; wiggle 1px so Chrome refreshes the hover color
-            MouseMove env[1] + (nudge := !nudge), env[2]
-        Sleep 10
-    }
-    Log("  no email button at " env[1] "," env[2] ": saw " SeenAt(env) ", wanted " Hex(env[3]) " or " Hex(env[4]))
-    return false
-}
-
-SpecialLead(calling) {
-    if calling
-        Alert("SPECIAL LEAD (no email button)`nIt's already dialing - this one's yours.", "special lead, a call was already going")
-    else
-        Alert("SPECIAL LEAD (no email button)`nNot called - dial this one yourself.", "special lead, not called")
-}
-
-WaitRinging(ring) {
-    stopAt := A_TickCount + DialWait
-    while (A_TickCount < stopAt) {
-        if Stopped()
-            return false
-        if SpotVisible(ring)
-            return true
-        Sleep 20
-    }
-    Log("  ringing sign never showed: saw " SeenAt(ring) ", wanted " Hex(ring[3]) " or " Hex(ring[4]))
-    return false
-}
-
-; Returns "answered", "noanswer", "ended", "badspot", or "" (stopped)
-WatchCall(ring, red, n) {
-    start := A_TickCount
-    lastSec := -1
-    Loop {
-        if Stopped()
-            return ""
-        secs := (A_TickCount - start) // 1000
-        if (secs != lastSec) {
-            lastSec := secs
-            Status(n, "ringing " secs "s")
-        }
-        if SpotVisible(ring) {
-            if !SpotVisible(red)        ; call over but "ringing" still showing: wrong spot
-                if !WaitGoneOrBack(ring, red, 1500)
-                    return "badspot"
-            if (A_TickCount - start > RingTimeout)
-                return "noanswer"
-        } else {
-            ; Ringing stopped. Red button still there for a moment = picked up.
-            ; Red button gone too = the call ended without an answer.
-            SpeakersMuted(false)        ; right away, so you hear their "Hello?"
-            confirmUntil := A_TickCount + AnsweredConfirmMs
-            back := false
-            while (A_TickCount < confirmUntil) {
-                if Stopped()
-                    return ""
-                if !SpotVisible(red)
-                    return "ended"
-                if SpotVisible(ring) {  ; just a flicker, still ringing
-                    SpeakersMuted(true)
-                    back := true
-                    break
-                }
-                Sleep 20
-            }
-            if !back
-                return "answered"
-        }
-        Sleep 20
-    }
-}
-
-; With no call going, the ringing sign should go away within ms (false = it didn't)
-WaitGoneOrBack(ring, red, ms) {
-    stopAt := A_TickCount + ms
-    while (A_TickCount < stopAt) {
-        if !SpotVisible(ring) || SpotVisible(red)
-            return true
-        Sleep 20
-    }
-    return false
-}
-
-; The saved ringing spot can't tell ringing from not ringing: forget it, so the
-; next F11 tap redoes that setup.
-BadRingingSpot(why) {
-    Log("STOPPED: ringing sign spot is wrong (" why ")")
-    try IniDelete IniFile, "autodial"
-    Flash("Auto-dial stopped: the ringing sign I saved doesn't work`n(" why ").`nTap F11 to set it up again.", 6000)
-}
-
-Status(n, what) => ToolTip("AUTO-DIAL  call " n ": " what "`n(Esc or move the mouse = stop)", 10, 10)
-
-Alert(msg, why) {
-    Log("STOPPED: " why)
-    SpeakersMuted(false)
-    Flash(msg, 6000)
-    SoundBeep 1500, 120
-}
-
-; Mute/unmute the speakers/headset only (never the microphone). Covers both the
-; normal sound device and the one Windows uses for calls, in case they differ.
-; Only ever unmutes what this script muted.
-global MutedByUs := []
-OnExit((*) => SpeakersMuted(false))     ; quitting mid-run never leaves you muted
-SpeakersMuted(mute) {
-    global MutedByUs
-    if !mute {
-        for vol in MutedByUs
-            try ComCall(14, vol, "int", 0, "ptr", 0)            ; SetMute(false)
-        if MutedByUs.Length
-            Log("  sound back on")
-        MutedByUs := []
-        return
-    }
-    if MutedByUs.Length
-        return
-    for role in [0, 2] {                                        ; 0 = normal, 2 = calls
-        try {
-            vol := SpeakerVolume(role)
-            ComCall(15, vol, "int*", &was := 0)                 ; GetMute
-            if was
-                continue                                        ; already muted by you: leave it alone
-            ComCall(14, vol, "int", 1, "ptr", 0)                ; SetMute(true)
-            MutedByUs.Push(vol)
-        } catch as e
-            Log("  couldn't mute sound device (" e.Message ")")
-    }
-    if MutedByUs.Length
-        Log("  sound muted")
-}
-
-; The volume control of the default playback device for a role (IAudioEndpointVolume)
-SpeakerVolume(role) {
-    enum := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}")
-    ComCall(4, enum, "int", 0, "int", role, "ptr*", &dev := 0)  ; GetDefaultAudioEndpoint(eRender, role)
-    iid := Buffer(16)
-    DllCall("ole32\CLSIDFromString", "wstr", "{5CDF2C82-841E-4546-9722-0CF74078229A}", "ptr", iid)
-    try ComCall(3, dev, "ptr", iid, "uint", 23, "ptr", 0, "ptr*", &vol := 0)   ; Activate(IAudioEndpointVolume)
-    finally ObjRelease(dev)
-    return ComValue(13, vol)
 }
 
 ; Click a spot. With activate: first bring the window under it to the front,
@@ -798,10 +474,9 @@ SeenAt(p) {
 ; Put the mouse on the spot (setup saved the hovered color) and wait for the color.
 ; ambiguous = the spot looked ready before the page changed, so first wait to see
 ; it change (at most AmbiguousCap ms).
-WaitForSpot(p, ambiguous := false, cap := AmbiguousCap, limit := 0) {
+WaitForSpot(p, ambiguous := false, cap := AmbiguousCap) {
     start := A_TickCount
-    if !limit
-        limit := Max(Timeout, cap + Timeout)
+    limit := Max(Timeout, cap + Timeout)
     seenGone := !ambiguous
     nudge := 0
     MouseMove p[1], p[2]
@@ -945,7 +620,7 @@ Flash(msg, ms := 1500) {
 if (hw := WinExist("VS Connect"))
     RestartAsAdminIfNeeded(hw)
 if LoadPoints() {
-    Flash("Lead Autopilot is ON ✔`nWin = email   Caps Lock = hang up + No Contact   F12 = call`nF11 = auto-dial until someone answers", 5000)
+    Flash("Lead Autopilot is ON ✔`nWin = email   Caps Lock = hang up + No Contact   F12 = call", 5000)
 } else {
     if (MsgBox("Lead Autopilot is ON ✔`n`nFirst it needs to learn where to click."
         . "`n`n1. Open a lead in VanillaSoft.`n2. Click OK here.`n3. Do your normal clicks on that lead."
