@@ -4,6 +4,8 @@ Out(s) => FileAppend(s "`n", "*")
 
 ; Fake softphone + VanillaSoft: colored squares on a borderless window at 0,0
 global PHONE := 0x00AA00, RED := 0xDD0000, NOC := 0x3366CC, ENV := 0x2266EE, OFF := 0xC0C0C0
+global EXT := 0x884400, UPL := 0x00AA88, TMPL := 0x6600AA, NXT := 0x0044CC, SB := 0x555555, SND := 0x22AA22
+global Emails := 0
 global Scenario := EnvGet("SCEN")
 global CallNo := 0
 try FileDelete A_ScriptDir "\lead_points.ini"
@@ -11,9 +13,13 @@ try FileDelete A_ScriptDir "\owlman_log.txt"
 ini := A_ScriptDir "\lead_points.ini"
 IniWrite "300,100," RED "," RED, ini, "hangup2", "hangup"
 IniWrite "100,300," NOC "," NOC, ini, "hangup2", "nocontact"
-for k in ["ext","upload","tmpl","next","scrollbar","send"]
-    IniWrite "5,5,0,0", ini, "points", k   ; email flow unused
 IniWrite "100,200," ENV "," ENV, ini, "points", "email"
+IniWrite "440,40," EXT "," EXT, ini, "points", "ext"
+IniWrite "440,120," UPL "," UPL, ini, "points", "upload"
+IniWrite "240,200," TMPL "," TMPL, ini, "points", "tmpl"
+IniWrite "240,260," NXT "," NXT, ini, "points", "next"
+IniWrite "470,300," SB "," SB, ini, "points", "scrollbar"
+IniWrite "400,360," SND "," SND, ini, "points", "send"
 
 g := Gui("-Caption +AlwaysOnTop")
 g.BackColor := "FFFFFF"
@@ -21,6 +27,27 @@ global cPhone := g.Add("Text", "x80 y80 w40 h40 Background" Format("{:06X}", PHO
 global cRed   := g.Add("Text", "x280 y80 w40 h40 Background" Format("{:06X}", OFF))
 global cNoc   := g.Add("Text", "x80 y280 w40 h40 Background" Format("{:06X}", NOC))
 global cEnv   := g.Add("Text", "x80 y180 w40 h40 Background" Format("{:06X}", ENV))
+global cExt  := g.Add("Text", "x420 y20 w40 h40 Background" Format("{:06X}", EXT))
+global cUpl  := g.Add("Text", "x420 y100 w40 h40 Background" Format("{:06X}", OFF))
+global cTmpl := g.Add("Text", "x220 y180 w40 h40 Background" Format("{:06X}", OFF))
+global cNxt  := g.Add("Text", "x220 y240 w40 h40 Background" Format("{:06X}", OFF))
+global cSb   := g.Add("Text", "x460 y280 w20 h40 Background" Format("{:06X}", OFF))
+global cSnd  := g.Add("Text", "x380 y340 w40 h40 Background" Format("{:06X}", OFF))
+global PopupOpen := false
+ExtClick(*) {
+    global PopupOpen := !PopupOpen
+    SetC(cUpl, PopupOpen ? UPL : OFF), Out("  [fake] Lead Scraper popup " (PopupOpen ? "open" : "closed"))
+}
+SendClick(*) {
+    global Emails += 1
+    SetC(cSnd, OFF), SetC(cSb, OFF), Out("  [fake] EMAIL SENT (" Emails ")")
+}
+cExt.OnEvent("Click", ExtClick)
+cUpl.OnEvent("Click", (*) => Out("  [fake] lead uploaded"))
+cEnv.OnEvent("Click", (*) => (Out("  [fake] envelope clicked"), SetC(cTmpl, TMPL)))
+cTmpl.OnEvent("Click", (*) => (SetC(cTmpl, OFF), SetC(cNxt, NXT)))
+cNxt.OnEvent("Click", (*) => (SetC(cNxt, OFF), SetC(cSb, SB), SetTimer(() => SetC(cSnd, SND), -500)))
+cSnd.OnEvent("Click", SendClick)
 cPhone.OnEvent("Click", (*) => StartFakeCall("!!! OWLMAN CLICKED THE PHONE (bug)"))
 cRed.OnEvent("Click", RedClick)
 cNoc.OnEvent("Click", NocClick)
@@ -81,7 +108,7 @@ if (Scenario = "timing") {
         t := PickTiming()
         if t.long {
             longs.Push(A_Index)
-            if (t.ring < 28000 || t.ring > 30000 || t.noContactPause < 5000 || t.noContactPause > 7000)
+            if (t.ring < 23000 || t.ring > 25000 || t.noContactPause < 5000 || t.noContactPause > 7000)
                 Out("BAD long timing on dial " A_Index)
         } else {
             rMin := Min(rMin, t.ring), rMax := Max(rMax, t.ring)
@@ -95,7 +122,7 @@ if (Scenario = "timing") {
     Out("normal ring: " rMin "-" rMax "ms   normal waits: " pMin "-" pMax "ms")
     ExitApp
 }
-RingMin := 2500, RingMax := 3000, PauseMin := 300, PauseMax := 600, NextCallWait := 4000   ; short, so tests run fast
+RingMin := 6000, RingMax := 7000, PauseMin := 300, PauseMax := 600, NextCallWait := 4000   ; short, so tests run fast
 if (Scenario = "nohang") {
     Sleep 500
     Out("result: " HangUpAndNoContact([300,100,RED,RED], [100,300,NOC,NOC], true))
@@ -114,7 +141,7 @@ else
     SetTimer () => StartFakeCall("you tapped the blue phone"), -1000
 DoAutoDial()   ; not via RunAutomation: Wine counts the script's own clicks as "you moved the mouse"
 Sleep 300
-Out("calls made: " CallNo "  box visible after stop: " DllCall("IsWindowVisible", "ptr", Panel.Hwnd))
+Out("calls made: " CallNo "  emails sent: " Emails)
 Out("--- log ---")
 Out(FileRead(A_ScriptDir "\owlman_log.txt"))
 ExitApp

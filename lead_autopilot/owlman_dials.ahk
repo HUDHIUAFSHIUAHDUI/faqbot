@@ -18,9 +18,10 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ;   Tap Right Alt again = OFF.
 ;   Right Alt + another key still works like a normal Alt key.
 ;   (Win and Caps Lock belong to lead_autopilot - Owlman never uses them.)
-; While ON it does your Caps Lock by itself:
-;   the call rings for a while -> hang up -> No Contact -> your dialer calls
-;   the next lead by itself -> again. Owlman never clicks a phone.
+; While ON, for every lead it does your Win and your Caps Lock by itself:
+;   the call rings -> your Win (Lead Scraper upload + email) while it rings ->
+;   ring time's up -> hang up -> No Contact -> your dialer calls the next lead
+;   by itself -> again. Owlman never clicks a phone.
 ; It can't tell when someone picks up, so your sound stays on:
 ;   when you hear someone answer, tap ANY key (or move the mouse) and it stops.
 ; A lead with NO email button is a special lead: it stops and leaves that call to you.
@@ -32,9 +33,9 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 
 ; Timing changes a little every call (random within these ranges, in ms), and
 ; every 10-15 dials one call is a "long" one where everything takes longer.
-global RingMin := 18000, RingMax := 23000         ; let it ring this long, then hang up
+global RingMin := 10000, RingMax := 25000         ; let it ring this long, then hang up
 global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact
-global LongRingMin := 28000, LongRingMax := 30000 ; the same, on a long dial
+global LongRingMin := 23000, LongRingMax := 25000 ; the same, on a long dial
 global LongPauseMin := 5000, LongPauseMax := 7000
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
@@ -47,6 +48,10 @@ global Timeout       := 5000    ; ms to wait for a button before giving up
 global ColorTolerance := 40
 global SpotSlack     := 4
 global AmbiguousCap  := 800
+global UploadWait    := 1200    ; the email flow's timings, same as lead_autopilot's
+global SendGoneMs    := 500
+global SendStuckMs   := 1000
+global HoldScrollMs  := 700
 
 global MainIni := A_ScriptDir "\lead_points.ini"        ; lead_autopilot's spots (read only)
 global LogFile := A_ScriptDir "\owlman_log.txt"
@@ -180,20 +185,23 @@ DoAutoDial() {
         return Flash("Your main hotkey is still working.`nWait for it to finish, then tap Right Alt again.", 3000)
     }
     hang := LoadPts(MainIni, "hangup2", ["hangup", "nocontact"])
-    env  := LoadPts(MainIni, "points", ["email"])
-    if !hang || !env
+    mail := LoadPts(MainIni, "points", EmailKeys)
+    if !hang || !mail
         return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
-    red := hang["hangup"], noc := hang["nocontact"], env := env["email"]
+    red := hang["hangup"], noc := hang["nocontact"], env := mail["email"]
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
     Panel.Show("NoActivate")
     SetStatus("Starting...`nTap Right Alt (or any key) = OFF.")
-    KeepPanelClear([red, noc, env])
+    spots := [red, noc]
+    for k, p in mail
+        spots.Push(p)
+    KeepPanelClear(spots)
     Log("RUN Owlman Dials")
-    return AutoDialLoop(red, noc, env)
+    return AutoDialLoop(red, noc, env, mail)
 }
 
-AutoDialLoop(red, noc, env) {
+AutoDialLoop(red, noc, env, mail) {
     n := 0
     afterNoContact := false
     Loop {
@@ -211,13 +219,17 @@ AutoDialLoop(red, noc, env) {
         if (r = "call") {
             if !EmailShowing(env)       ; special lead: already dialing, it's yours
                 return Stopped() ? Fail("") : SpecialLead()
-            ; 2. Let it ring. You hear it; someone answers -> you tap a key.
+            ; 2. Your Win: upload the lead + send the email, while it rings
+            Status(n, "sending the email...")
+            if !SendEmail(mail)
+                return
+            ; 3. Let it ring. You hear it; someone answers -> you tap a key.
             r := RingFor(red, n, t.ring)
             Log(" call " n ": " r)
             if (r = "")
                 return Fail("")
         }
-        ; 3. Your Caps Lock: hang up (if it's still going), then No Contact
+        ; 4. Your Caps Lock: hang up (if it's still going), then No Contact
         if !HangUpAndNoContact(red, noc, r = "noanswer", t.noContactPause)
             return
         afterNoContact := true
@@ -370,6 +382,150 @@ Alert(msg, why) {
     Log("STOPPED: " why)
     Flash(msg, 6000)
     SoundBeep 1500, 120
+}
+
+; ---------- EMAIL (a copy of lead_autopilot's Win key) ----------
+global EmailKeys := ["ext", "upload", "email", "tmpl", "next", "scrollbar", "send"]
+global EmailNames := Map("ext", "Lead Scraper icon", "upload", "Upload button", "email", "email envelope icon"
+    , "tmpl", "NCCTeam template", "next", "Next button", "scrollbar", "scrollbar", "send", "Send button")
+
+; Lead Scraper -> Upload -> envelope -> NCCTeam -> Next -> scroll -> Send.
+; True once the email is sent (false = stopped, and it already said why).
+SendEmail(pts) {
+    Log(" email: start")
+    ambiguous := false
+    for i, key in EmailKeys {
+        p := pts[key]
+        if (key = "scrollbar")
+            continue
+        if (key = "send")
+            return ClickSend(p, pts["scrollbar"], pts["next"])
+        if (key = "ext" && SpotVisible(pts["upload"])) {
+            ; The Lead Scraper popup is still open from last time. Clicking the
+            ; icon now would CLOSE it, so go straight to Upload instead.
+            Log(" ext: popup already open, not clicking the icon")
+            continue
+        }
+        Log(" " key ": looking")
+        if !WaitForSpot(p, ambiguous)
+            return Fail(EmailNames[key])
+        Sleep Settle
+        ; If the next button's spot ALREADY looks ready before we click, don't
+        ; trust it until the page has changed (same as lead_autopilot).
+        ambiguous := (key != "upload" && key != "next") && SpotVisible(pts[EmailKeys[i + 1]])
+        Click p[1], p[2]
+        Log(" " key ": clicked")
+        if (key = "upload") {
+            if !WaitMs(UploadWait)
+                return Fail("")
+            if !ClosePopup(pts)
+                return Fail("a way to close the Lead Scraper popup")
+        }
+    }
+}
+
+; Close the Lead Scraper popup and make sure it's really gone
+ClosePopup(pts) {
+    up := pts["upload"], ext := pts["ext"]
+    Send "{Esc}"
+    if WaitGone(up, 500)
+        return true
+    Log(" popup: Esc didn't close it, clicking the icon to close it")
+    Click ext[1], ext[2]        ; the icon toggles the popup closed
+    if WaitGone(up, 700)
+        return true
+    Log(" popup: still open")
+    return false
+}
+
+; Click Send once it is steadily showing, then make sure the email actually went.
+; Clicks again only if the button came back or nothing happened for SendStuckMs,
+; so an email is not sent twice.
+ClickSend(p, sb, nxt) {
+    Loop 6 {
+        tryNo := A_Index
+        if !ScrollUntilSend(p, sb, nxt)
+            return Fail("Send button")
+        Click p[1], p[2]
+        Log(" send: clicked (try " tryNo ")")
+        start := A_TickCount
+        goneSince := 0
+        Loop {
+            if Stopped()
+                return Fail("")
+            if SpotVisible(p) {
+                if goneSince            ; it came back: the click didn't take
+                    break
+                if (A_TickCount - start > SendStuckMs)
+                    break
+            } else {
+                if !goneSince
+                    goneSince := A_TickCount
+                if (A_TickCount - goneSince >= SendGoneMs) {
+                    Log(" email: sent")
+                    return true
+                }
+            }
+            Sleep 10
+        }
+    }
+    return Fail("Send didn't go through")
+}
+
+; Scroll the email page (by the scrollbar spot from setup) until Send sits still
+ScrollUntilSend(p, sb, nxt) {
+    stopAt := A_TickCount + 4000             ; wait for the Next page to go away
+    while (A_TickCount < stopAt && SpotVisible(nxt)) {
+        if Stopped()
+            return false
+        Sleep 10
+    }
+    tried := false
+    stopAt := A_TickCount + Timeout + 4000
+    while (A_TickCount < stopAt) {
+        if Stopped()
+            return false
+        MouseMove p[1], p[2]
+        Sleep 20
+        MouseMove p[1] + 1, p[2]
+        if StaysVisible(p, 150)
+            return true
+        MouseMove sb[1], sb[2]
+        Sleep 20
+        if SpotVisible(sb) {
+            if !tried {
+                Send("+{Click " sb[1] " " sb[2] "}")   ; Shift+click jumps to the bottom
+                tried := true
+            } else {
+                Click sb[1], sb[2], "Down"            ; hold: Chrome pages down by itself
+                Sleep HoldScrollMs
+                Click sb[1], sb[2], "Up"
+            }
+            if !WaitMs(80)
+                return false
+        }
+    }
+    return false
+}
+
+StaysVisible(p, ms) {
+    stopAt := A_TickCount + ms
+    while (A_TickCount < stopAt) {
+        if Stopped() || !SpotVisible(p)
+            return false
+        Sleep 10
+    }
+    return true
+}
+
+WaitMs(ms) {
+    stopAt := A_TickCount + ms
+    while (A_TickCount < stopAt) {
+        if Stopped()
+            return false
+        Sleep 10
+    }
+    return true
 }
 
 ; Is lead_autopilot in the middle of a run or a setup right now? Its log (read

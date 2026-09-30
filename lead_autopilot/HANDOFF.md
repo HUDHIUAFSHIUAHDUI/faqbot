@@ -40,7 +40,7 @@ Brendan sells health and life insurance. He works on a **Windows 11 tablet** wit
 Saved spots are in `lead_points.ini` under `points` (email flow), `hangup2` (Caps Lock) and `call` (F12, probably never set up). See the original handoff for design details: click-to-record setup, the hover and idle colors, and the Win-key masking trick.
 
 ## Owlman Dials: `owlman_dials.ahk` (SIMPLE MODE, since 2026-09-30)
-Brendan asked for it simple: **it is just his Caps Lock, done automatically on a timer.** No setup of its own, no ringing-sign detection, no muting.
+Brendan asked for it simple: **it is just his Win + Caps Lock, done automatically on a timer, for every lead.** No setup of its own, no ringing-sign detection, no muting.
 
 **One key: Right Alt** (no Fn).
 - **Tap Right Alt**: ON. A small always-on-top "OWLMAN DIALS is ON" box shows.
@@ -55,14 +55,15 @@ Brendan asked for it simple: **it is just his Caps Lock, done automatically on a
 **Loop (never clicks a phone):**
 1. Wait for the call: the red hang-up spot (`hangup2/hangup`) shows within `NextCallWait` (15 s). After No Contact, also wait for the new lead's page (envelope gone and back, or `ReloadWait`). If the call is already up when he taps Right Alt, it starts right away.
 2. **Special lead** (no email envelope): stops and beeps; the call is his.
-3. Let it ring 18–23 s (from when the red button appeared). Every 10–15 dials one is long: 28–30 s. If the red button goes away first (declined), skip to No Contact.
-4. Hang up, wait 2–5 s (long dial 5–7 s), click No Contact. The dialer calls the next lead. Repeat.
+3. **While it rings, do his Win email flow** (a copy of the main script's `DoRun`: Lead Scraper → Upload → close popup → envelope → NCCTeam → Next → scroll → Send). A failure stops the run.
+4. Let it ring **10–25 s** total, counted from when the red button appeared (he asked for 10–25). Every 10–15 dials one is long: 23–25 s. If the red button goes away first (declined), skip to No Contact.
+5. Hang up, wait 2–5 s (long dial 5–7 s), click No Contact. The dialer calls the next lead. Repeat.
 
 **Known trade-off (Brendan agreed):** it cannot see a pickup. Sound stays on; he must tap a key when someone answers, or it will hang up on them when the timer runs out. Voicemail also isn't detected.
 
 **Safety checks:** won't start while the main script is mid-run (reads `lead_autopilot_log.txt`); the box moves off saved buttons; errors log and stop quietly; restarts as admin if VS Connect is elevated.
 
-**Files:** reads `lead_points.ini` **read-only** (`points/email`, `hangup2/hangup`, `hangup2/nocontact`). Writes only `owlman_log.txt`. `owlman_points.ini` is no longer used (safe to delete).
+**Files:** reads `lead_points.ini` **read-only** (all of `points` for the email flow, plus `hangup2/hangup`, `hangup2/nocontact`). Writes only `owlman_log.txt`. `owlman_points.ini` is no longer used (safe to delete).
 
 ## Status
 - Simple mode was sent to him; not yet run on his tablet.
