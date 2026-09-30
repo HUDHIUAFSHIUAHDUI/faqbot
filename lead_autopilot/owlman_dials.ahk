@@ -13,12 +13,12 @@ SetKeyDelay -1
 try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 
 ; ===================== OWLMAN DIALS =====================
-; A SEPARATE add-on to lead_autopilot. It starts ASLEEP: while asleep it does
-; nothing at all except listen for F9 (F11 works like normal).
-;   F9 = turn ON.  A small "OWLMAN DIALS is ON" box shows.
-;   F9 again (or "Turn OFF" in the box) = turn OFF: stops any run, sound back on,
-;   box goes away, asleep again.
-; While ON, F11 = call the lead; nobody answers in time -> hang up, No Contact,
+; A SEPARATE add-on to lead_autopilot. One key, no Fn: RIGHT ALT.
+;   Tap Right Alt       = ON: starts dialing. A small "OWLMAN DIALS is ON" box shows.
+;   Tap Right Alt again = OFF: stops, sound back on, box goes away.
+;   Right Alt + another key still works like a normal Alt key.
+;   (Win, Caps Lock and F12 belong to lead_autopilot - Owlman never uses them.)
+; While ON: calls the lead; nobody answers in time -> hang up, No Contact,
 ;   next lead. Keeps going until someone picks up, then beeps and stops.
 ;   Your speakers/headset stay muted while it rings (never your microphone).
 ;   A lead with NO email button is a special lead: it stops without calling it.
@@ -54,35 +54,57 @@ global OwnIni  := A_ScriptDir "\owlman_points.ini"   ; the ringing sign
 global LogFile := A_ScriptDir "\owlman_log.txt"
 global Abort := false, UserMoved := false, Running := false, RunStart := 0
 global SetupOn := false
-global OwlOn := false          ; asleep until F9
+global UserStopped := false
 
 ; ---------- ON/OFF BOX ----------
 global Panel := Gui("+AlwaysOnTop +ToolWindow -MinimizeBox", "Owlman Dials")
 Panel.SetFont("s10 bold", "Segoe UI")
 Panel.Add("Text", "c008800", "OWLMAN DIALS is ON")
 Panel.SetFont("s9 norm")
-global PanelStatus := Panel.Add("Text", "w230 r3", "Tap F11 to start.`nAny key or mouse move = stop.")
-Panel.Add("Button", "w230 h32", "Turn OFF  (F9)").OnEvent("Click", (*) => OwlOff())
+global PanelStatus := Panel.Add("Text", "w230 r3", "")
+Panel.Add("Button", "w230 h32", "Turn OFF  (Right Alt)").OnEvent("Click", (*) => OwlOff())
 Panel.OnEvent("Close", (*) => OwlOff())
-Panel.Show("Hide x10 y" (A_ScreenHeight - 230))    ; placed, but hidden while asleep
+Panel.Show("Hide x10 y" (A_ScreenHeight - 230))    ; placed, but hidden while OFF
 if (A_Args.Length && A_Args[1] = "on")   ; restarted as administrator while ON
-    SetTimer OwlOnNow, -100
+    SetTimer () => TriggerRun(DoAutoDial), -300
 else
-    Flash("Owlman Dials is ready (asleep).`nPress F9 to turn it on.", 4000)
+    Flash("Owlman Dials is ready.`nTap Right Alt to turn it on.", 4000)
 
-; ---------- ON / OFF (F9) ----------
-F9::(OwlOn ? OwlOff() : OwlOnNow())
-
-OwlOnNow() {
-    global OwlOn := true
-    SetStatus("Tap F11 to start.`nAny key or mouse move = stop.")
-    Panel.Show("NoActivate")
-    Log("ON")
-    Flash("Owlman Dials ON", 1500)
+; ---------- ON / OFF: RIGHT ALT ----------
+; Right Alt is held back and re-sent, so a tap alone never opens a menu
+; (Alt alone would) but Right Alt + another key still works.
+; Whether Owlman was ON is decided when the key goes DOWN: pressing any key
+; already stops a run, so by the time it comes up the run may be over, and that
+; tap must mean OFF, not "start again".
+global AltHeld := false, AltDownBusy := false
+*RAlt:: {
+    global AltHeld, AltDownBusy
+    if !AltHeld {               ; first press, not the auto-repeat while held
+        AltHeld := true
+        AltDownBusy := Running || SetupOn
+    }
+    Send "{Blind}{RAlt down}"
+}
+*RAlt Up:: {
+    global AltHeld := false
+    alone := (A_PriorKey = "RAlt")
+    if alone
+        Send "{Blind}{vkE8}"    ; tells Windows "Alt was used", so no menu opens
+    Send "{Blind}{RAlt up}"
+    if !alone
+        return
+    if AltDownBusy
+        OwlOff()
+    else
+        TriggerRun(DoAutoDial)
 }
 
 OwlOff() {
-    global OwlOn := false, Abort := true, SetupOn := false
+    global Abort := true, UserStopped := true, SetupOn
+    if SetupOn {
+        SetupOn := false
+        ToolTip
+    }
     SpeakersMuted(false)        ; a run in progress also stops and unmutes by itself
     Panel.Hide()
     Log("OFF")
@@ -123,29 +145,17 @@ OwlmanError(e, *) {
     SpeakersMuted(false)
     Log("ERROR: " e.Message " (line " e.Line ")")
     Flash("Owlman Dials hit a problem and stopped.`nSend owlman_log.txt to get it fixed.", 5000)
-    SetStatus("Stopped (error). Tap F11 to try again.")
+    try Panel.Hide()
     return 1                    ; no scary error box
 }
 
 ; ---------- KEYS ----------
-#HotIf OwlOn                   ; asleep = F11 does its normal thing
-*F11::TriggerRun(DoAutoDial)
-#HotIf
-
-#HotIf OwlOn
-~Esc:: {
-    global Abort := true
-    global SetupOn
-    if SetupOn {
-        SetupOn := false
-        Flash("Owlman Dials setup cancelled.")
-        SetStatus("Tap F11 to start.`nAny key or mouse move = stop.")
-    }
-}
+#HotIf Running || SetupOn
+~Esc::OwlOff()
 #HotIf
 
 TriggerRun(fn) {
-    if !Running
+    if !Running && !SetupOn
         SetTimer () => RunAutomation(fn), -1
 }
 
@@ -158,6 +168,8 @@ RunAutomation(fn) {
     finally {
         ReleaseStuckKeys()
         Running := false
+        if !SetupOn
+            Panel.Hide()        ; OFF again: the box only shows while ON
     }
 }
 
@@ -181,7 +193,8 @@ StartRingingSetup(phone) {
         Sleep 300               ; let the click land before the setup message pops up over the screen
     }
     SetupOn := true
-    msg := "OWLMAN DIALS SETUP`n`nThe lead is being called (F12 calls again).`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n`n(Esc = cancel)"
+    Panel.Show("NoActivate")
+    msg := "OWLMAN DIALS SETUP`n`nThe lead is being called (F12 calls again).`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n`n(Esc or Right Alt = cancel)"
     ToolTip msg, 10, 10
     SetStatus("Setup: click the ringing sign.")
 }
@@ -207,8 +220,8 @@ RecordRinging() {
     Log("SETUP ringing at " x "," y " hover=" c " idle=" idle)
     SetupOn := false
     SoundBeep 1200, 60
-    Flash("Setup saved!`nHang up this call (Caps Lock), then tap F11 to start Owlman Dials.", 5000)
-    SetStatus("Tap F11 to start.`nAny key or mouse move = stop.")
+    Panel.Hide()
+    Flash("Setup saved!`nHang up this call (Caps Lock), then tap Right Alt to start Owlman Dials.", 6000)
 }
 
 ; ---------- OWLMAN DIALS ----------
@@ -217,13 +230,12 @@ RecordRinging() {
 ; When unsure what's happening it STOPS instead of hanging up, so a real person
 ; is never hung up on because of a guess.
 DoAutoDial() {
-    global Abort := false
-    global UserMoved := false
-    if SetupOn || !OwlOn
+    global Abort := false, UserMoved := false, UserStopped := false
+    if SetupOn
         return
     if MainBusy() {
         Log("not starting: lead_autopilot is in the middle of something")
-        return Flash("Your main hotkey is still working.`nWait for it to finish, then tap F11 again.", 3000)
+        return Flash("Your main hotkey is still working.`nWait for it to finish, then tap Right Alt again.", 3000)
     }
     call := LoadPts(MainIni, "call", ["call"])
     hang := LoadPts(MainIni, "hangup2", ["hangup", "nocontact"])
@@ -235,10 +247,10 @@ DoAutoDial() {
     if !ring
         return StartRingingSetup(phone)
     ring := ring["ringing"]
-    KeyWait "F11"
-    global RunStart := A_TickCount  ; letting go of F11 isn't a "stop" key press
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
+    Panel.Show("NoActivate")
+    SetStatus("Starting...`nTap Right Alt (or any key) = OFF.")
     KeepPanelClear([phone, red, noc, ring, env])
     Log("RUN Owlman Dials")
     SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
@@ -465,7 +477,7 @@ Pause(ms, label) {
             return false
         secs := Ceil((stopAt - A_TickCount) / 1000)
         if (secs != lastSec)
-            lastSec := secs, SetStatus(label " " secs "s`nAny key or mouse move = stop.")
+            lastSec := secs, SetStatus(label " " secs "s`nTap Right Alt (or any key) = OFF.")
         Sleep 20
     }
     return true
@@ -526,21 +538,19 @@ WaitGoneOrBack(ring, red, ms) {
 }
 
 ; The saved ringing spot can't tell ringing from not ringing: forget it, so the
-; next F11 tap redoes that setup.
+; next Right Alt tap redoes that setup.
 BadRingingSpot(why) {
     Log("STOPPED: ringing sign spot is wrong (" why ")")
     try IniDelete OwnIni, "autodial"
-    Flash("Owlman Dials stopped: the ringing sign I saved doesn't work`n(" why ").`nTap F11 to set it up again.", 6000)
-    SetStatus("Stopped: ringing sign needs setup again.`nTap F11.")
+    Flash("Owlman Dials stopped: the ringing sign I saved doesn't work`n(" why ").`nTap Right Alt to set it up again.", 6000)
 }
 
-Status(n, what) => SetStatus("Call " n ": " what "`nAny key or mouse move = stop.")
+Status(n, what) => SetStatus("Call " n ": " what "`nTap Right Alt (or any key) = OFF.")
 
 Alert(msg, why) {
     Log("STOPPED: " why)
     SpeakersMuted(false)
     Flash(msg, 6000)
-    SetStatus(StrReplace(msg, "`n", " ") "`nTap F11 to start again.")
     SoundBeep 1500, 120
 }
 
@@ -757,16 +767,15 @@ IsProcessElevated(pid) {
 }
 
 Fail(name) {
-    Log("STOPPED: " (!OwlOn ? "turned OFF" : UserMoved ? "you used the mouse or keyboard" : Abort ? "Esc pressed" : name = "" ? "stopped" : "couldn't find " name))
+    Log("STOPPED: " (UserStopped ? "turned OFF" : UserMoved ? "you used the mouse or keyboard" : Abort ? "Esc pressed" : name = "" ? "stopped" : "couldn't find " name))
     if UserMoved
         msg := "Stopped - you used the mouse or keyboard."
     else if Abort || name = ""
         msg := "Stopped."
     else
         msg := "Couldn't find: " name
-    if OwlOn
+    if !UserStopped             ; turned OFF: "OFF" already showed
         Flash(msg, 3000)
-    SetStatus(msg "`nTap F11 to start again.")
 }
 
 Flash(msg, ms := 1500) {
