@@ -39,63 +39,48 @@ Brendan sells health and life insurance. He works on a **Windows 11 tablet** wit
 
 Saved spots are in `lead_points.ini` under `points` (email flow), `hangup2` (Caps Lock) and `call` (F12, probably never set up). See the original handoff for design details: click-to-record setup, the hover and idle colors, and the Win-key masking trick.
 
-## Owlman Dials: `owlman_dials.ahk`
+## Owlman Dials: `owlman_dials.ahk` (SIMPLE MODE, since 2026-09-30)
+Brendan asked for it simple: **it is just his Caps Lock, done automatically on a timer.** No setup of its own, no ringing-sign detection, no muting.
+
 **One key: Right Alt** (no Fn).
-- **Tap Right Alt**: ON. Starts watching or dialing, and a small always-on-top "OWLMAN DIALS is ON" box shows.
-- **Tap Right Alt again**: OFF. Stops, turns the sound back on, and hides the box. Esc, any other physical key, a mouse move, or the box's Turn OFF button also stops it.
-- Right Alt is held back and re-sent, using the same vkE8 masking trick the main script uses for Win. A tap never opens a menu, and Right Alt combos still work. Whether Owlman was busy is captured on key **down**, because the key press itself already stops a run, so the up event must mean OFF, not "start again".
-- The script file must be running (double-click once per day). While OFF it does nothing but listen for Right Alt.
+- **Tap Right Alt**: ON. A small always-on-top "OWLMAN DIALS is ON" box shows.
+- **Tap Right Alt again**: OFF. Esc, any other physical key, a mouse move, or the box's Turn OFF button also stops it. **This is how a pickup is handled: he hears the person and taps any key.**
+- Right Alt is held back and re-sent with the vkE8 masking trick (same as the main script's Win). Whether Owlman was busy is captured on key **down**.
+- The script file must be running (double-click once per day).
 
-**Loop (never clicks the phone):**
-1. Wait for the dialer's call: the red hang-up spot appears within `NextCallWait` (15 s). After No Contact, also wait for the new lead's page to load: the envelope goes away and comes back, or `ReloadWait` passes. **The call is watched the whole time.** A pickup or decline during this wait is handled at once.
-2. **Special lead:** no email envelope, checked by hovering the envelope spot from the Win setup. It stops and unmutes; the call is Brendan's.
-3. Watch the **ringing sign**, the one spot Owlman records itself.
-   - The ringing sign disappears while the red button stays for `AnsweredConfirmMs`: **answered**. It unmutes immediately, beeps, and stops.
-   - The red button disappears: the lead **declined**. It clicks No Contact and moves on.
-   - Still ringing after the ring limit: **no answer**. It hangs up (last-moment pickup re-check first), waits, clicks No Contact, and the dialer calls the next lead.
-4. **Muting:** speakers and headset are muted while ringing, using both the default playback device and the default communications device, never the mic. They are unmuted on pickup, stop, error, or exit. Only devices Owlman itself muted are unmuted.
-5. **Timing is random every call:** it rings 18–23 s before hanging up and waits 2–5 s before No Contact. **Every 10–15 dials** (random) one dial is long: it rings 28–30 s and waits 5–7 s. There is no wait before the next call, because the dialer calls instantly.
-6. Hang-up skip: if the red button isn't found within 3 s, the call is already over, so it goes straight to No Contact.
+**His real setup (learned this session):**
+- He starts the first call by tapping the **blue phone** next to the number in VanillaSoft (not the green one in VS Connect). After hang-up + No Contact, VanillaSoft moves to the next lead and calls it by itself.
+- VS Connect shows **"Call established"** with a timer; the call box turns green on voicemail or pickup. So there is no reliable on-screen "ringing" sign to watch. This is why the ringing-sign version was dropped.
 
-**Safety checks:**
-- The ringing spot showing with no call, or staying on after the call ends, means a bad setup. Owlman forgets only that spot and asks for setup on the next tap.
-- It won't start while the main script is mid-run. It reads `lead_autopilot_log.txt` read-only: a line from the last 10 s that isn't `RUN done` or `STOPPED` means busy.
-- Any physical key or mouse input stops a run, so a run never overlaps a main-script key.
-- The box moves itself off any saved button before a run.
-- Errors unmute, write to the log, and stop quietly with no error dialog.
-- If VS Connect runs elevated, Owlman restarts itself as admin and comes back ON.
+**Loop (never clicks a phone):**
+1. Wait for the call: the red hang-up spot (`hangup2/hangup`) shows within `NextCallWait` (15 s). After No Contact, also wait for the new lead's page (envelope gone and back, or `ReloadWait`). If the call is already up when he taps Right Alt, it starts right away.
+2. **Special lead** (no email envelope): stops and beeps; the call is his.
+3. Let it ring 18–23 s (from when the red button appeared). Every 10–15 dials one is long: 28–30 s. If the red button goes away first (declined), skip to No Contact.
+4. Hang up, wait 2–5 s (long dial 5–7 s), click No Contact. The dialer calls the next lead. Repeat.
 
-**Files and what Owlman reads:**
-- Reads `lead_points.ini` **read-only**:
-  - `points/email` (the envelope)
-  - `hangup2/hangup` (the red button)
-  - `hangup2/nocontact` (No Contact)
-- Writes only `owlman_points.ini` (`[autodial] ringing=x,y,hover,idle`) and `owlman_log.txt`.
+**Known trade-off (Brendan agreed):** it cannot see a pickup. Sound stays on; he must tap a key when someone answers, or it will hang up on them when the timer runs out. Voicemail also isn't detected.
 
-**Setup (first Right Alt tap):** while the dialer's call is ringing, click the ringing sign on VS Connect, for example the word "Ringing". The click is not passed on. Plain white or gray spots are refused, and clicks on the Owlman box pass through.
+**Safety checks:** won't start while the main script is mid-run (reads `lead_autopilot_log.txt`); the box moves off saved buttons; errors log and stop quietly; restarts as admin if VS Connect is elevated.
+
+**Files:** reads `lead_points.ini` **read-only** (`points/email`, `hangup2/hangup`, `hangup2/nocontact`). Writes only `owlman_log.txt`. `owlman_points.ini` is no longer used (safe to delete).
 
 ## Status
-- **Nothing in Owlman has been run on his tablet yet.** He was about to do the first setup. Right Alt, the real mute, and the timing against his real dialer are all unverified.
-- Earlier attempts with F9/F11 failed on his tablet because those keys need Fn.
-- Next steps:
-  1. Walk him through setup one step at a time. The first Right Alt tap should happen while a call is ringing.
-  2. Get `owlman_log.txt` after the first real runs.
-  3. Tune `ReloadWait`, `NextCallWait` and `EnvelopeWait` from the log.
-- Open offers: a smaller or secret-looking box (a tiny owl, no words), and making Owlman start with Windows.
+- Simple mode was sent to him; not yet run on his tablet.
+- Next: get `owlman_log.txt` after his first runs; tune `NextCallWait`, `ReloadWait`, `EnvelopeWait`.
+- Open offers: a smaller or secret-looking box, and starting Owlman with Windows.
+- Possible later upgrade (only if he asks): detect pickup from the call box turning green, which would allow muting again.
 
 ## Testing (you can't run it on his machine)
 Setup: Wine and Xvfb, plus AutoHotkey v2.0.18 from `github.com/AutoHotkey/AutoHotkey/releases/download/v2.0.18/AutoHotkey_2.0.18.zip`. Install with `apt-get install wine64 wine xdotool`; autohotkey.com is blocked.
 - **Syntax check:** `xvfb-run -a wine AutoHotkey64.exe /ErrorStdOut /validate owlman_dials.ahk`
 - **Behavior:** `harness/owlman_harness.ahk` draws a fake VanillaSoft and softphone (colored squares at fixed spots), and its fake dialer calls by itself after No Contact. Run it with `SCEN=<name> xvfb-run -a -s "-screen 0 1280x1024x24" wine AutoHotkey64.exe /ErrorStdOut 'harness\owlman_harness.ahk'`. The scenarios:
-  - `setup`, `setupoff`: first-time setup, and stopping during setup
-  - `toggle`: turning Owlman off mid-call
-  - `answer1`, `answer2`: pickups
+  - `basic`: rings out three times, then "someone answers" and a key stops it
+  - `already`: the call was already going when Owlman was turned on
+  - `decline`: the lead declines call 2
   - `special`: a lead with no email button
-  - `decline`: the lead declines
   - `noauto`: the dialer never calls
-  - `lastmoment`: pickup right at the ring limit
-  - `badspot`, `stuck`: a bad ringing-sign setup
   - `nohang`: the red button is missing
+  - `toggle`: turning Owlman off mid-call
   - `busy`: the main script is mid-run
   - `timing`: random timing and long dials
 - **Wine gotchas:**

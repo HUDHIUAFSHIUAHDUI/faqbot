@@ -14,34 +14,31 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 
 ; ===================== OWLMAN DIALS =====================
 ; A SEPARATE add-on to lead_autopilot. One key, no Fn: RIGHT ALT.
-;   Tap Right Alt       = ON: starts dialing. A small "OWLMAN DIALS is ON" box shows.
-;   Tap Right Alt again = OFF: stops, sound back on, box goes away.
+;   Tap Right Alt       = ON. A small "OWLMAN DIALS is ON" box shows.
+;   Tap Right Alt again = OFF.
 ;   Right Alt + another key still works like a normal Alt key.
 ;   (Win and Caps Lock belong to lead_autopilot - Owlman never uses them.)
-; While ON: calls the lead; nobody answers in time -> hang up, No Contact,
-;   and your dialer calls the next lead by itself (Owlman never clicks the
-;   phone - your dialer does all the calling). Keeps going until someone picks up, then beeps and stops.
-;   Your speakers/headset stay muted while it rings (never your microphone).
-;   A lead with NO email button is a special lead: it stops without calling it.
-; Esc, any other key, or moving the mouse stops a run (so it never runs at the same
-;   time as a lead_autopilot key like Caps Lock).
+; While ON it does your Caps Lock by itself:
+;   the call rings for a while -> hang up -> No Contact -> your dialer calls
+;   the next lead by itself -> again. Owlman never clicks a phone.
+; It can't tell when someone picks up, so your sound stays on:
+;   when you hear someone answer, tap ANY key (or move the mouse) and it stops.
+; A lead with NO email button is a special lead: it stops and leaves that call to you.
+; No setup of its own: it uses the spots from your Win and Caps Lock setups.
 ;
-; It never changes lead_autopilot or its saved spots: it only READS the spots
-; from lead_points.ini (Win and Caps Lock setups) and keeps its own one
-; spot (the ringing sign) in owlman_points.ini.
+; It never changes lead_autopilot or its saved spots: it only READS them
+; from lead_points.ini.
 ; =====================================================
 
 ; Timing changes a little every call (random within these ranges, in ms), and
-; every LongEvery dials one call is a "long" one where everything takes longer.
-global RingMin := 18000, RingMax := 23000         ; ringing with no answer before hanging up
+; every 10-15 dials one call is a "long" one where everything takes longer.
+global RingMin := 18000, RingMax := 23000         ; let it ring this long, then hang up
 global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact
 global LongRingMin := 28000, LongRingMax := 30000 ; the same, on a long dial
 global LongPauseMin := 5000, LongPauseMax := 7000
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
-global DialWait      := 8000    ; ms to wait for ringing to start once a call is going
-global AnsweredConfirmMs := 800 ; ringing sign must stay gone this long (red button still there) = answered
 global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
 global HangupSkipMs  := 3000    ; red hang-up button not found in this long = call's already over
 global ReloadWait    := 3000    ; ms max to wait for the page to reload after hanging up
@@ -52,11 +49,10 @@ global SpotSlack     := 4
 global AmbiguousCap  := 800
 
 global MainIni := A_ScriptDir "\lead_points.ini"        ; lead_autopilot's spots (read only)
-global OwnIni  := A_ScriptDir "\owlman_points.ini"   ; the ringing sign
 global LogFile := A_ScriptDir "\owlman_log.txt"
 global Abort := false, UserMoved := false, Running := false, RunStart := 0
-global SetupOn := false
 global UserStopped := false
+global CallStart := 0
 
 ; ---------- ON/OFF BOX ----------
 global Panel := Gui("+AlwaysOnTop +ToolWindow -MinimizeBox", "Owlman Dials")
@@ -83,7 +79,7 @@ global AltHeld := false, AltDownBusy := false
     global AltHeld, AltDownBusy
     if !AltHeld {               ; first press, not the auto-repeat while held
         AltHeld := true
-        AltDownBusy := Running || SetupOn
+        AltDownBusy := Running
     }
     Send "{Blind}{RAlt down}"
 }
@@ -102,12 +98,7 @@ global AltHeld := false, AltDownBusy := false
 }
 
 OwlOff() {
-    global Abort := true, UserStopped := true, SetupOn
-    if SetupOn {
-        SetupOn := false
-        ToolTip
-    }
-    SpeakersMuted(false)        ; a run in progress also stops and unmutes by itself
+    global Abort := true, UserStopped := true
     Panel.Hide()
     Log("OFF")
     Flash("Owlman Dials OFF", 1500)
@@ -141,10 +132,9 @@ KeepPanelClear(spots) {
     Log("couldn't find a spot for the Owlman box that covers no button")
 }
 
-; Anything unexpected: never leave you muted, and write it down for fixing
+; Anything unexpected: write it down for fixing
 OnError(OwlmanError)
 OwlmanError(e, *) {
-    SpeakersMuted(false)
     Log("ERROR: " e.Message " (line " e.Line ")")
     Flash("Owlman Dials hit a problem and stopped.`nSend owlman_log.txt to get it fixed.", 5000)
     try Panel.Hide()
@@ -152,12 +142,12 @@ OwlmanError(e, *) {
 }
 
 ; ---------- KEYS ----------
-#HotIf Running || SetupOn
+#HotIf Running
 ~Esc::OwlOff()
 #HotIf
 
 TriggerRun(fn) {
-    if !Running && !SetupOn
+    if !Running
         SetTimer () => RunAutomation(fn), -1
 }
 
@@ -170,8 +160,7 @@ RunAutomation(fn) {
     finally {
         ReleaseStuckKeys()
         Running := false
-        if !SetupOn
-            Panel.Hide()        ; OFF again: the box only shows while ON
+        Panel.Hide()            ; OFF again: the box only shows while ON
     }
 }
 
@@ -181,54 +170,11 @@ ReleaseStuckKeys() {
             Send "{Blind}{" k " up}"
 }
 
-; ---------- SETUP (one spot: the ringing sign) ----------
-#HotIf SetupOn
-LButton::RecordRinging()
-#HotIf
-
-StartRingingSetup() {
-    global SetupOn := true
-    Panel.Show("NoActivate")
-    SetStatus("Setup: click the ringing sign.")
-    ToolTip "OWLMAN DIALS SETUP`n`nWhen your dialer is calling a lead and it's RINGING,`nclick the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n`n(Esc or Right Alt = cancel)", 10, 10
-}
-
-; Remember where (and what color) the ringing sign is. The click is not passed on.
-RecordRinging() {
-    global SetupOn
-    MouseGetPos &x, &y, &win
-    if (win = Panel.Hwnd) {     ; a click on the Owlman box (like Turn OFF): let it through
-        Click
-        return
-    }
-    ToolTip                     ; hide the instructions, in case they sit over the spot
-    Sleep 250                   ; let the hover highlight finish fading in
-    c := PixelGetColor(x, y)
-    MouseMove 1, 1
-    Sleep 150
-    idle := PixelGetColor(x, y)
-    MouseMove x, y
-    if !Distinct(c) && !Distinct(idle) {
-        ToolTip "That spot is plain white or gray.`nClick right ON the colored part or the dark text of the ringing sign.`n`n(Esc or Right Alt = cancel)", 10, 10
-        return
-    }
-    IniWrite x "," y "," c "," idle, OwnIni, "autodial", "ringing"
-    Log("SETUP ringing at " x "," y " hover=" c " idle=" idle)
-    SetupOn := false
-    SoundBeep 1200, 60
-    Panel.Hide()
-    Flash("Setup saved!`nTap Right Alt to start Owlman Dials.", 5000)
-}
-
 ; ---------- OWLMAN DIALS ----------
-; Call -> watch the ringing sign -> nobody answered in time? hang up + No Contact,
-; then call the next lead. Stops the moment someone picks up.
-; When unsure what's happening it STOPS instead of hanging up, so a real person
-; is never hung up on because of a guess.
+; Wait for the dialer's call -> let it ring -> hang up + No Contact (your
+; Caps Lock) -> the dialer calls the next lead -> again, until you stop it.
 DoAutoDial() {
     global Abort := false, UserMoved := false, UserStopped := false
-    if SetupOn
-        return
     if MainBusy() {
         Log("not starting: lead_autopilot is in the middle of something")
         return Flash("Your main hotkey is still working.`nWait for it to finish, then tap Right Alt again.", 3000)
@@ -238,103 +184,53 @@ DoAutoDial() {
     if !hang || !env
         return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
     red := hang["hangup"], noc := hang["nocontact"], env := env["email"]
-    own := LoadPts(OwnIni, "autodial", ["ringing"])
-    if !own
-        return StartRingingSetup()
-    ring := own["ringing"]
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
     Panel.Show("NoActivate")
     SetStatus("Starting...`nTap Right Alt (or any key) = OFF.")
-    KeepPanelClear([red, noc, ring, env])
+    KeepPanelClear([red, noc, env])
     Log("RUN Owlman Dials")
-    SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
-    try
-        return AutoDialLoop(red, noc, ring, env)
-    finally
-        SpeakersMuted(false)    ; however it stops, you always get your sound back
+    return AutoDialLoop(red, noc, env)
 }
 
-AutoDialLoop(red, noc, ring, env) {
+AutoDialLoop(red, noc, env) {
     n := 0
     afterNoContact := false
     Loop {
         n += 1
-        SpeakersMuted(true)
         t := PickTiming()
-        Log(" call " n (t.long ? " (LONG dial)" : "") ": ring up to " t.ring "ms, wait before No Contact " t.noContactPause "ms")
-        ; 1. Your dialer does the calling - Owlman never clicks the phone.
-        if !SpotVisible(red) && StaysVisible(ring, 500)
-            return BadRingingSpot("it shows even with no call going")
+        Log(" call " n (t.long ? " (LONG dial)" : "") ": ring " t.ring "ms, wait before No Contact " t.noContactPause "ms")
+        ; 1. Your dialer does the calling - Owlman never clicks a phone.
         Status(n, "waiting for the dialer's call...")
-        r := WaitForCall(red, env, ring, afterNoContact)
+        r := WaitForCall(red, env, afterNoContact)
         Log(" call " n ": " r)
         if (r = "")
             return Fail("")
         if (r = "none")
             return Fail("a call (your dialer didn't call the lead)")
-        if (r = "answered")
-            return Alert("SOMEONE ANSWERED - go!", "answered on call " n)
-        if (r = "ended") {              ; they declined right away: No Contact, next
-            if !HangUpAndNoContact(red, noc, false, 0, t.noContactPause)
-                return
-            afterNoContact := true
-            continue
-        }
-        if !EmailShowing(env)           ; special lead: already dialing, it's yours
-            return Stopped() ? Fail("") : SpecialLead(true)
-        ; 2. Wait for it to start ringing
-        Status(n, "dialing...")
-        if !WaitRinging(ring) {
-            if Stopped()
-                return Fail("")
-            if SpotVisible(red)
-                return Alert("Couldn't see it ringing - check the call!", "never saw the ringing sign, but the call is up")
-            return Fail("a call starting (the ringing sign never showed)")
-        }
-        ; 3. Watch until it's answered, ends, or rings too long
-        result := WatchCall(ring, red, n, t.ring)
-        Log(" call " n ": " result)
-        switch result {
-            case "answered":
-                return Alert("SOMEONE ANSWERED - go!", "answered on call " n)
-            case "noanswer":
-                r := HangUpAndNoContact(red, noc, true, ring, t.noContactPause)
-                if (r = "answered")
-                    return Alert("SOMEONE ANSWERED - go!", "answered right at the time limit, on call " n)
-                if !r
-                    return
-            case "ended":           ; they declined / busy: the call is already over
-                if !HangUpAndNoContact(red, noc, false, 0, t.noContactPause)
-                    return
-            case "badspot":
-                return BadRingingSpot("it stayed on after the call ended")
-            default:                ; Esc / mouse moved
+        if (r = "call") {
+            if !EmailShowing(env)       ; special lead: already dialing, it's yours
+                return Stopped() ? Fail("") : SpecialLead()
+            ; 2. Let it ring. You hear it; someone answers -> you tap a key.
+            r := RingFor(red, n, t.ring)
+            Log(" call " n ": " r)
+            if (r = "")
                 return Fail("")
         }
+        ; 3. Your Caps Lock: hang up (if it's still going), then No Contact
+        if !HangUpAndNoContact(red, noc, r = "noanswer", t.noContactPause)
+            return
         afterNoContact := true
     }
 }
 
 ; Hang up (if asked and the red button is there within HangupSkipMs), then No Contact.
-HangUpAndNoContact(red, noc, hangUp, ring := 0, pauseMs := 0) {
+HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
     waitReload := true          ; the page reloads after a call ends
     if hangUp {
         Log(" hangup: looking")
         if WaitForSpot(red, false, AmbiguousCap, HangupSkipMs) {
             Sleep Settle
-            ; Last look: if the ringing stopped right at the time limit and the call
-            ; is still up, they just picked up - never hang up on them.
-            if ring && !SpotVisible(ring) {
-                gone := StaysGone(ring, AnsweredConfirmMs)
-                if Stopped()
-                    return Fail("")
-                if gone && SpotVisible(red) {
-                    SpeakersMuted(false)
-                    Log(" hangup: they picked up at the last moment - NOT hanging up")
-                    return "answered"
-                }
-            }
             if !SpotVisible(red) {  ; the call ended by itself meanwhile
                 Log(" hangup: call already over")
             } else {
@@ -373,40 +269,50 @@ HangUpAndNoContact(red, noc, hangUp, ring := 0, pauseMs := 0) {
 ; Wait for your dialer's call (the red hang-up button shows). After No Contact
 ; the page also reloads to the next lead: wait for that too (the envelope goes
 ; away and comes back), so the special-lead check looks at the NEW lead.
-; The call is watched the whole time: if they pick up or hang up during this
-; wait, that's handled right away (sound comes straight back on a pickup).
-; Returns "call", "answered", "ended", "none" (no call came), or "" (stopped).
-WaitForCall(red, env, ring, afterNoContact) {
-    start := A_TickCount, envGone := false, callSeen := 0, ringSeen := false
+; Returns "call", "ended" (the call was over right away), "none" (no call came),
+; or "" (stopped).
+WaitForCall(red, env, afterNoContact) {
+    global CallStart := 0
+    start := A_TickCount, envGone := false
     Loop {
         if Stopped()
             return ""
         if !SpotVisible(env)
             envGone := true
-        if (!callSeen && SpotVisible(red)) {
-            callSeen := A_TickCount
-            Log("  call going after " (callSeen - start) "ms")
+        if (!CallStart && SpotVisible(red)) {
+            CallStart := A_TickCount
+            Log("  call going after " (CallStart - start) "ms")
         }
-        if callSeen {
-            if SpotVisible(ring)
-                ringSeen := true
-            else if ringSeen && SpotVisible(red) {
-                ; ringing stopped with the call still up: picked up?
-                SpeakersMuted(false)
-                if StaysGone(ring, AnsweredConfirmMs) && SpotVisible(red)
-                    return "answered"
-                if Stopped()
-                    return ""
-                SpeakersMuted(true)     ; just a flicker
-            }
+        if CallStart {
             if !SpotVisible(red) && StaysGone(red, 300)
                 return "ended"          ; declined / busy already
-            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - callSeen > ReloadWait)
+            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - CallStart > ReloadWait)
                 return "call"
         } else if (A_TickCount - start > NextCallWait) {
             Log("  no call after " NextCallWait "ms: saw " SeenAt(red) " at the hang-up spot")
             return "none"
         }
+        Sleep 20
+    }
+}
+
+; Let the call ring for ringMs (counted from when the call started).
+; Returns "noanswer" (time's up), "ended" (the call ended by itself), or "" (stopped).
+RingFor(red, n, ringMs) {
+    lastSec := -1
+    Loop {
+        if Stopped()
+            return ""
+        el := A_TickCount - CallStart
+        if (el >= ringMs)
+            return "noanswer"
+        secs := (ringMs - el + 999) // 1000
+        if (secs != lastSec) {
+            lastSec := secs
+            Status(n, "hanging up in " secs "s")
+        }
+        if !SpotVisible(red) && StaysGone(red, 300)
+            return "ended"
         Sleep 20
     }
 }
@@ -430,25 +336,7 @@ EmailShowing(env) {
     return false
 }
 
-SpecialLead(calling) {
-    if calling
-        Alert("SPECIAL LEAD (no email button)`nIt's already dialing - this one's yours.", "special lead, a call was already going")
-    else
-        Alert("SPECIAL LEAD (no email button)`nNot called - dial this one yourself.", "special lead, not called")
-}
-
-WaitRinging(ring) {
-    stopAt := A_TickCount + DialWait
-    while (A_TickCount < stopAt) {
-        if Stopped()
-            return false
-        if SpotVisible(ring)
-            return true
-        Sleep 20
-    }
-    Log("  ringing sign never showed: saw " SeenAt(ring) ", wanted " Hex(ring[3]) " or " Hex(ring[4]))
-    return false
-}
+SpecialLead() => Alert("SPECIAL LEAD (no email button)`nIt's already dialing - this one's yours.", "special lead, a call was already going")
 
 ; This dial's timing: random every time, and a long dial every 10-15 dials
 PickTiming() {
@@ -476,119 +364,12 @@ Pause(ms, label) {
     return true
 }
 
-; Returns "answered", "noanswer", "ended", "badspot", or "" (stopped)
-WatchCall(ring, red, n, ringLimit) {
-    start := A_TickCount
-    lastSec := -1
-    Loop {
-        if Stopped()
-            return ""
-        secs := (A_TickCount - start) // 1000
-        if (secs != lastSec) {
-            lastSec := secs
-            Status(n, "ringing " secs "s")
-        }
-        if SpotVisible(ring) {
-            if !SpotVisible(red)        ; call over but "ringing" still showing: wrong spot
-                if !WaitGoneOrBack(ring, red, 1500)
-                    return "badspot"
-            if (A_TickCount - start > ringLimit)
-                return "noanswer"
-        } else {
-            ; Ringing stopped. Red button still there for a moment = picked up.
-            ; Red button gone too = the call ended without an answer.
-            SpeakersMuted(false)        ; right away, so you hear their "Hello?"
-            confirmUntil := A_TickCount + AnsweredConfirmMs
-            back := false
-            while (A_TickCount < confirmUntil) {
-                if Stopped()
-                    return ""
-                if !SpotVisible(red)
-                    return "ended"
-                if SpotVisible(ring) {  ; just a flicker, still ringing
-                    SpeakersMuted(true)
-                    back := true
-                    break
-                }
-                Sleep 20
-            }
-            if !back
-                return "answered"
-        }
-        Sleep 20
-    }
-}
-
-; With no call going, the ringing sign should go away within ms (false = it didn't)
-WaitGoneOrBack(ring, red, ms) {
-    stopAt := A_TickCount + ms
-    while (A_TickCount < stopAt) {
-        if !SpotVisible(ring) || SpotVisible(red)
-            return true
-        Sleep 20
-    }
-    return false
-}
-
-; The saved ringing spot can't tell ringing from not ringing: forget it, so the
-; next Right Alt tap redoes that setup.
-BadRingingSpot(why) {
-    Log("STOPPED: ringing sign spot is wrong (" why ")")
-    try IniDelete OwnIni, "autodial", "ringing"     ; only the ringing sign
-    Flash("Owlman Dials stopped: the ringing sign I saved doesn't work`n(" why ").`nTap Right Alt to set it up again.", 6000)
-}
-
-Status(n, what) => SetStatus("Call " n ": " what "`nTap Right Alt (or any key) = OFF.")
+Status(n, what) => SetStatus("Call " n ": " what "`nSomeone answers? Tap any key = STOP.")
 
 Alert(msg, why) {
     Log("STOPPED: " why)
-    SpeakersMuted(false)
     Flash(msg, 6000)
     SoundBeep 1500, 120
-}
-
-; ---------- SOUND ----------
-; Mute/unmute the speakers/headset only (never the microphone). Covers both the
-; normal sound device and the one Windows uses for calls, in case they differ.
-; Only ever unmutes what this script muted.
-global MutedByUs := []
-OnExit((*) => SpeakersMuted(false))     ; turning it off mid-run never leaves you muted
-SpeakersMuted(mute) {
-    global MutedByUs
-    if !mute {
-        for vol in MutedByUs
-            try ComCall(14, vol, "int", 0, "ptr", 0)            ; SetMute(false)
-        if MutedByUs.Length
-            Log("  sound back on")
-        MutedByUs := []
-        return
-    }
-    if MutedByUs.Length
-        return
-    for role in [0, 2] {                                        ; 0 = normal, 2 = calls
-        try {
-            vol := SpeakerVolume(role)
-            ComCall(15, vol, "int*", &was := 0)                 ; GetMute
-            if was
-                continue                                        ; already muted by you: leave it alone
-            ComCall(14, vol, "int", 1, "ptr", 0)                ; SetMute(true)
-            MutedByUs.Push(vol)
-        } catch as e
-            Log("  couldn't mute sound device (" e.Message ")")
-    }
-    if MutedByUs.Length
-        Log("  sound muted")
-}
-
-; The volume control of the default playback device for a role (IAudioEndpointVolume)
-SpeakerVolume(role) {
-    enum := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}")
-    ComCall(4, enum, "int", 0, "int", role, "ptr*", &dev := 0)  ; GetDefaultAudioEndpoint(eRender, role)
-    iid := Buffer(16)
-    DllCall("ole32\CLSIDFromString", "wstr", "{5CDF2C82-841E-4546-9722-0CF74078229A}", "ptr", iid)
-    try ComCall(3, dev, "ptr", iid, "uint", 23, "ptr", 0, "ptr*", &vol := 0)   ; Activate(IAudioEndpointVolume)
-    finally ObjRelease(dev)
-    return ComValue(13, vol)
 }
 
 ; Is lead_autopilot in the middle of a run or a setup right now? Its log (read
@@ -698,16 +479,6 @@ StaysGone(p, ms) {
     stopAt := A_TickCount + ms
     while (A_TickCount < stopAt) {
         if Stopped() || SpotVisible(p)
-            return false
-        Sleep 10
-    }
-    return true
-}
-
-StaysVisible(p, ms) {
-    stopAt := A_TickCount + ms
-    while (A_TickCount < stopAt) {
-        if Stopped() || !SpotVisible(p)
             return false
         Sleep 10
     }
