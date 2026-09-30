@@ -214,6 +214,10 @@ DoAutoDial() {
     global UserMoved := false
     if SetupOn || !OwlOn
         return
+    if MainBusy() {
+        Log("not starting: lead_autopilot is in the middle of something")
+        return Flash("Your main hotkey is still working.`nWait for it to finish, then tap F11 again.", 3000)
+    }
     call := LoadPts(MainIni, "call", ["call"])
     hang := LoadPts(MainIni, "hangup2", ["hangup", "nocontact"])
     env  := LoadPts(MainIni, "points", ["email"])
@@ -528,6 +532,20 @@ SpeakerVolume(role) {
     try ComCall(3, dev, "ptr", iid, "uint", 23, "ptr", 0, "ptr*", &vol := 0)   ; Activate(IAudioEndpointVolume)
     finally ObjRelease(dev)
     return ComValue(13, vol)
+}
+
+; Is lead_autopilot in the middle of a run or a setup right now? Its log (read
+; only) says so: a recent last line that isn't "RUN done" or "STOPPED".
+MainBusy() {
+    f := A_ScriptDir "\lead_autopilot_log.txt"
+    try {
+        if (DateDiff(A_Now, FileGetTime(f), "Seconds") > 10)
+            return false        ; nothing written lately: idle
+        lines := StrSplit(Trim(FileRead(f), "`r`n"), "`n")
+        last := Trim(SubStr(lines[lines.Length], 20))  ; drop the time stamp
+        return !(InStr(last, "RUN done") = 1 || InStr(last, "STOPPED") = 1)
+    }
+    return false                ; no log yet
 }
 
 ; ---------- HELPERS (same as lead_autopilot's) ----------
