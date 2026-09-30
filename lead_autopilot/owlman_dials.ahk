@@ -30,7 +30,14 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ; spot (the ringing sign) in owlman_points.ini.
 ; =====================================================
 
-global RingTimeout   := 20000   ; ms of ringing with no answer before hanging up
+; Timing changes a little every call (random within these ranges, in ms), and
+; every LongEvery dials one call is a "long" one where everything takes longer.
+global RingMin := 18000, RingMax := 23000         ; ringing with no answer before hanging up
+global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact, and before calling the next lead
+global LongRingMin := 28000, LongRingMax := 30000 ; the same, on a long dial
+global LongPauseMin := 5000, LongPauseMax := 7000
+global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
+global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global DialWait      := 8000    ; ms to wait for ringing to start after clicking the green phone
 global AnsweredConfirmMs := 800 ; ringing sign must stay gone this long (red button still there) = answered
 global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
@@ -247,6 +254,8 @@ AutoDialLoop(phone, red, noc, ring, env) {
     Loop {
         n += 1
         SpeakersMuted(true)
+        t := PickTiming()
+        Log(" call " n (t.long ? " (LONG dial)" : "") ": ring up to " t.ring "ms, waits " t.dialPause "/" t.noContactPause "ms")
         ; 1. Start the call (unless VanillaSoft already started one by itself)
         if SpotVisible(red) {
             Log(" call " n ": a call is already going, not clicking the phone")
@@ -255,7 +264,7 @@ AutoDialLoop(phone, red, noc, ring, env) {
         } else {
             if StaysVisible(ring, 500)
                 return BadRingingSpot("it shows even with no call going")
-            r := DialLead(phone, red, env, afterNoContact)
+            r := DialLead(phone, red, env, afterNoContact, afterNoContact ? t.dialPause : 0)
             if (r = "special")
                 return Stopped() ? Fail("") : SpecialLead(false)
             if (r = "auto" && !EmailShowing(env))
@@ -273,19 +282,19 @@ AutoDialLoop(phone, red, noc, ring, env) {
             return Fail("a call starting (the ringing sign never showed)")
         }
         ; 3. Watch until it's answered, ends, or rings too long
-        result := WatchCall(ring, red, n)
+        result := WatchCall(ring, red, n, t.ring)
         Log(" call " n ": " result)
         switch result {
             case "answered":
                 return Alert("SOMEONE ANSWERED - go!", "answered on call " n)
             case "noanswer":
-                r := HangUpAndNoContact(red, noc, true, ring)
+                r := HangUpAndNoContact(red, noc, true, ring, t.noContactPause)
                 if (r = "answered")
                     return Alert("SOMEONE ANSWERED - go!", "answered right at the time limit, on call " n)
                 if !r
                     return
             case "ended":           ; they declined / busy: the call is already over
-                if !HangUpAndNoContact(red, noc, false)
+                if !HangUpAndNoContact(red, noc, false, 0, t.noContactPause)
                     return
             case "badspot":
                 return BadRingingSpot("it stayed on after the call ended")
@@ -297,7 +306,7 @@ AutoDialLoop(phone, red, noc, ring, env) {
 }
 
 ; Hang up (if asked and the red button is there within HangupSkipMs), then No Contact.
-HangUpAndNoContact(red, noc, hangUp, ring := 0) {
+HangUpAndNoContact(red, noc, hangUp, ring := 0, pauseMs := 0) {
     waitReload := true          ; the page reloads after a call ends
     if hangUp {
         Log(" hangup: looking")
@@ -338,6 +347,12 @@ HangUpAndNoContact(red, noc, hangUp, ring := 0) {
     Log(" nocontact: looking")
     if !WaitForSpot(noc, waitReload, waitReload ? ReloadWait : AmbiguousCap)
         return Fail("No Contact button")
+    if pauseMs {
+        if !Pause(pauseMs, "No Contact in")
+            return Fail("")
+        if !SpotVisible(noc) && !WaitForSpot(noc)   ; make sure it's still there after the wait
+            return Fail("No Contact button")
+    }
     Sleep Settle
     ClickAt(noc[1], noc[2], true)
     Log(" nocontact: clicked")
@@ -348,7 +363,7 @@ HangUpAndNoContact(red, noc, hangUp, ring := 0) {
 ; old lead's phone icon is still showing, so first wait for the page to change.
 ; No email button on the new lead = special lead: don't call it.
 ; Returns "clicked", "auto" (a call started by itself), "special", or "" (failed).
-DialLead(p, red, env, afterNoContact) {
+DialLead(p, red, env, afterNoContact, pauseMs := 0) {
     start := A_TickCount
     seenGone := !afterNoContact
     nudge := 0
@@ -363,6 +378,18 @@ DialLead(p, red, env, afterNoContact) {
         if SpotVisible(p) && (seenGone || A_TickCount - start > ReloadWait) {
             if !EmailShowing(env)
                 return "special"
+            if pauseMs {
+                if !Pause(pauseMs, "next call in")
+                    return ""
+                pauseMs := 0
+                start := A_TickCount, seenGone := true
+                if SpotVisible(red) {   ; VanillaSoft dialed it by itself meanwhile
+                    Log("  a call started by itself, not clicking the phone")
+                    return "auto"
+                }
+                MouseMove p[1], p[2]
+                continue            ; look at the phone icon again, then click
+            }
             Sleep Settle
             ClickAt(p[1], p[2], true)
             Log("  phone clicked after " (A_TickCount - start) "ms")
@@ -417,8 +444,35 @@ WaitRinging(ring) {
     return false
 }
 
+; This dial's timing: random every time, and a long dial every 10-15 dials
+PickTiming() {
+    global DialsUntilLong -= 1
+    long := DialsUntilLong <= 0
+    if long
+        DialsUntilLong := Random(LongEveryMin, LongEveryMax)
+    return {long: long
+        , ring: long ? Random(LongRingMin, LongRingMax) : Random(RingMin, RingMax)
+        , noContactPause: long ? Random(LongPauseMin, LongPauseMax) : Random(PauseMin, PauseMax)
+        , dialPause: long ? Random(LongPauseMin, LongPauseMax) : Random(PauseMin, PauseMax)}
+}
+
+; Wait ms (stops early on Esc / key / mouse), showing a countdown in the box
+Pause(ms, label) {
+    stopAt := A_TickCount + ms
+    lastSec := -1
+    while (A_TickCount < stopAt) {
+        if Stopped()
+            return false
+        secs := Ceil((stopAt - A_TickCount) / 1000)
+        if (secs != lastSec)
+            lastSec := secs, SetStatus(label " " secs "s`nAny key or mouse move = stop.")
+        Sleep 20
+    }
+    return true
+}
+
 ; Returns "answered", "noanswer", "ended", "badspot", or "" (stopped)
-WatchCall(ring, red, n) {
+WatchCall(ring, red, n, ringLimit) {
     start := A_TickCount
     lastSec := -1
     Loop {
@@ -433,7 +487,7 @@ WatchCall(ring, red, n) {
             if !SpotVisible(red)        ; call over but "ringing" still showing: wrong spot
                 if !WaitGoneOrBack(ring, red, 1500)
                     return "badspot"
-            if (A_TickCount - start > RingTimeout)
+            if (A_TickCount - start > ringLimit)
                 return "noanswer"
         } else {
             ; Ringing stopped. Red button still there for a moment = picked up.
