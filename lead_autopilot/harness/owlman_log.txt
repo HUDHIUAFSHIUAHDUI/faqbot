@@ -1,0 +1,100 @@
+09/30 23:22:38.981  RUN Owlman Dials
+09/30 23:22:38.981   call 1: ring 6359ms, wait before No Contact 444ms
+09/30 23:22:39.986    call going after 1004ms
+09/30 23:22:39.987   call 1: call
+09/30 23:22:39.993   email: start
+09/30 23:22:39.994   ext: looking
+09/30 23:22:39.997    found 440,40 after 2ms
+09/30 23:22:40.038   ext: clicked
+09/30 23:22:40.038   upload: looking
+09/30 23:22:40.052    found 440,120 after 13ms
+09/30 23:22:40.055    found 440,120 after 3ms
+09/30 23:22:40.096   upload: clicked
+09/30 23:22:41.813   popup: Esc didn't close it, clicking the icon to close it
+09/30 23:22:41.825   email: looking
+09/30 23:22:41.828    found 100,200 after 2ms
+09/30 23:22:41.866   email: clicked
+09/30 23:22:41.867   tmpl: looking
+09/30 23:22:41.873    found 240,200 after 5ms
+09/30 23:22:41.917   tmpl: clicked
+09/30 23:22:41.917   next: looking
+09/30 23:22:41.923    found 240,260 after 5ms
+09/30 23:22:41.966   next: clicked
+09/30 23:22:44.743   send: clicked (try 1)
+09/30 23:22:45.260   email: sent
+09/30 23:22:46.349   call 1: noanswer
+09/30 23:22:46.349   hangup: looking
+09/30 23:22:46.352    found 300,100 after 3ms
+09/30 23:22:46.404   hangup: clicked
+09/30 23:22:46.417   nocontact: looking
+09/30 23:22:46.819    found 100,300 after 401ms
+09/30 23:22:47.315   nocontact: clicked
+09/30 23:22:47.315   call 2: ring 6939ms, wait before No Contact 416ms
+09/30 23:22:48.235    call going after 919ms
+09/30 23:22:48.236   call 2: call
+09/30 23:22:48.240   email: start
+09/30 23:22:48.241   ext: looking
+09/30 23:22:48.244    found 440,40 after 2ms
+09/30 23:22:48.287   ext: clicked
+09/30 23:22:48.287   upload: looking
+09/30 23:22:48.304    found 440,120 after 17ms
+09/30 23:22:48.306    found 440,120 after 2ms
+09/30 23:22:48.345   upload: clicked
+09/30 23:22:50.061   popup: Esc didn't close it, clicking the icon to close it
+09/30 23:22:50.078   email: looking
+09/30 23:22:50.083    found 100,200 after 3ms
+09/30 23:22:50.128   email: clicked
+09/30 23:22:50.128   tmpl: looking
+09/30 23:22:50.135    found 240,200 after 6ms
+09/30 23:22:50.179   tmpl: clicked
+09/30 23:22:50.179   next: looking
+09/30 23:22:50.185    found 240,260 after 5ms
+09/30 23:22:50.228   next: clicked
+09/30 23:22:51.390   send: clicked (try 1)
+09/30 23:22:51.913   email: sent
+09/30 23:22:52.221   call 2: ended
+09/30 23:22:52.221   nocontact: looking
+09/30 23:22:55.229    found 100,300 after 3008ms
+09/30 23:22:55.707   nocontact: clicked
+09/30 23:22:55.707   call 3: ring 6382ms, wait before No Contact 307ms
+09/30 23:22:56.631    call going after 923ms
+09/30 23:22:56.633   call 3: call
+09/30 23:22:56.636   email: start
+09/30 23:22:56.637   ext: looking
+09/30 23:22:56.640    found 440,40 after 2ms
+09/30 23:22:56.685   ext: clicked
+09/30 23:22:56.685   upload: looking
+09/30 23:22:56.690    found 440,120 after 4ms
+09/30 23:22:56.692    found 440,120 after 2ms
+09/30 23:22:56.736   upload: clicked
+09/30 23:22:58.443   popup: Esc didn't close it, clicking the icon to close it
+09/30 23:22:58.458   email: looking
+09/30 23:22:58.460    found 100,200 after 2ms
+09/30 23:22:58.505   email: clicked
+09/30 23:22:58.505   tmpl: looking
+09/30 23:22:58.510    found 240,200 after 4ms
+09/30 23:22:58.554   tmpl: clicked
+09/30 23:22:58.554   next: looking
+09/30 23:22:58.569    found 240,260 after 14ms
+09/30 23:22:58.612   next: clicked
+09/30 23:22:59.778   send: clicked (try 1)
+09/30 23:23:00.291   email: sent
+09/30 23:23:03.031   call 3: noanswer
+09/30 23:23:03.031   hangup: looking
+09/30 23:23:03.035    found 300,100 after 3ms
+09/30 23:23:03.086   hangup: clicked
+09/30 23:23:03.099   nocontact: looking
+09/30 23:23:03.500    found 100,300 after 400ms
+09/30 23:23:03.866   nocontact: clicked
+09/30 23:23:03.866   call 4: ring 6911ms, wait before No Contact 319ms
+09/30 23:23:04.787    call going after 920ms
+09/30 23:23:04.788   call 4: call
+09/30 23:23:04.792   email: start
+09/30 23:23:04.793   ext: looking
+09/30 23:23:04.795    found 440,40 after 2ms
+09/30 23:23:04.839   ext: clicked
+09/30 23:23:04.839   upload: looking
+09/30 23:23:04.856    found 440,120 after 16ms
+09/30 23:23:04.858    found 440,120 after 2ms
+09/30 23:23:04.897   upload: clicked
+09/30 23:23:05.365  STOPPED: Esc pressed

@@ -50,7 +50,11 @@ global SpotSlack     := 4
 global AmbiguousCap  := 800
 global UploadWait    := 1200    ; the email flow's timings, same as lead_autopilot's
 global SendGoneMs    := 500
-global SendStuckMs   := 1000
+global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
+                                ; (on the tablet a good click takes ~2 s to go through;
+                                ; 1 s made it click Send twice every time)
+global EmailStepWait := 8000    ; ms to wait for each email button
+global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
 global HoldScrollMs  := 700
 
 global MainIni := A_ScriptDir "\lead_points.ini"        ; lead_autopilot's spots (read only)
@@ -264,7 +268,7 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
         }
     }
     Log(" nocontact: looking")
-    if !WaitForSpot(noc, waitReload, waitReload ? ReloadWait : AmbiguousCap)
+    if !WaitForSpot(noc, waitReload, waitReload ? ReloadWait : AmbiguousCap, NoContactWait)
         return Fail("No Contact button")
     if pauseMs {
         if !Pause(pauseMs, "No Contact in")
@@ -407,7 +411,15 @@ SendEmail(pts) {
             continue
         }
         Log(" " key ": looking")
-        if !WaitForSpot(p, ambiguous)
+        if (key = "upload" && !WaitForSpot(p, false, AmbiguousCap, 4000)) {
+            ; The popup didn't open (or the click closed one that was open):
+            ; click the Lead Scraper icon once more.
+            if Stopped()
+                return Fail("")
+            Log(" upload: popup didn't open, clicking the Lead Scraper icon again")
+            Click pts["ext"][1], pts["ext"][2]
+        }
+        if !WaitForSpot(p, ambiguous, AmbiguousCap, EmailStepWait)
             return Fail(EmailNames[key])
         Sleep Settle
         ; If the next button's spot ALREADY looks ready before we click, don't
@@ -442,7 +454,7 @@ ClosePopup(pts) {
 ; Clicks again only if the button came back or nothing happened for SendStuckMs,
 ; so an email is not sent twice.
 ClickSend(p, sb, nxt) {
-    Loop 6 {
+    Loop 3 {
         tryNo := A_Index
         if !ScrollUntilSend(p, sb, nxt)
             return Fail("Send button")

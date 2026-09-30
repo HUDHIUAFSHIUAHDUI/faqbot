@@ -66,7 +66,10 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 **Files:** reads `lead_points.ini` **read-only** (all of `points` for the email flow, plus `hangup2/hangup`, `hangup2/nocontact`). Writes only `owlman_log.txt`. `owlman_points.ini` is no longer used (safe to delete).
 
 ## Status
-- Simple mode was sent to him; not yet run on his tablet.
+- Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
+  - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.
+  - Upload popup sometimes didn't open: if Upload doesn't show in 4 s, click the Lead Scraper icon once more.
+  - Email steps get 8 s each (`EmailStepWait`); No Contact gets 15 s (`NoContactWait`), since it was sometimes gray (0xCBCBCB) for over 8 s after hanging up.
 - Next: get `owlman_log.txt` after his first runs; tune `NextCallWait`, `ReloadWait`, `EnvelopeWait`.
 - Open offers: a smaller or secret-looking box, and starting Owlman with Windows.
 - Possible later upgrade (only if he asks): detect pickup from the call box turning green, which would allow muting again.

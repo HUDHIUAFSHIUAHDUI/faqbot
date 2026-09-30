@@ -33,12 +33,22 @@ global cTmpl := g.Add("Text", "x220 y180 w40 h40 Background" Format("{:06X}", OF
 global cNxt  := g.Add("Text", "x220 y240 w40 h40 Background" Format("{:06X}", OFF))
 global cSb   := g.Add("Text", "x460 y280 w20 h40 Background" Format("{:06X}", OFF))
 global cSnd  := g.Add("Text", "x380 y340 w40 h40 Background" Format("{:06X}", OFF))
-global PopupOpen := false
+global PopupOpen := false, ExtClicks := 0, SendClicks := 0
 ExtClick(*) {
+    global ExtClicks += 1
+    if (Scenario = "popupmiss" && ExtClicks = 1)
+        return Out("  [fake] Lead Scraper icon click did nothing")
     global PopupOpen := !PopupOpen
     SetC(cUpl, PopupOpen ? UPL : OFF), Out("  [fake] Lead Scraper popup " (PopupOpen ? "open" : "closed"))
 }
 SendClick(*) {
+    global SendClicks += 1
+    Out("  [fake] Send clicked (" SendClicks ")")
+    if (Scenario = "slowsend")          ; like the tablet: Send takes ~2 s to go away
+        return SetTimer(SendDone, -2000)
+    SendDone()
+}
+SendDone() {
     global Emails += 1
     SetC(cSnd, OFF), SetC(cSb, OFF), Out("  [fake] EMAIL SENT (" Emails ")")
 }
@@ -141,7 +151,7 @@ else
     SetTimer () => StartFakeCall("you tapped the blue phone"), -1000
 DoAutoDial()   ; not via RunAutomation: Wine counts the script's own clicks as "you moved the mouse"
 Sleep 300
-Out("calls made: " CallNo "  emails sent: " Emails)
+Out("calls made: " CallNo "  emails sent: " Emails "  Send clicks: " SendClicks)
 Out("--- log ---")
 Out(FileRead(A_ScriptDir "\owlman_log.txt"))
 ExitApp
