@@ -17,7 +17,7 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ;   Tap Right Alt       = ON: starts dialing. A small "OWLMAN DIALS is ON" box shows.
 ;   Tap Right Alt again = OFF: stops, sound back on, box goes away.
 ;   Right Alt + another key still works like a normal Alt key.
-;   (Win, Caps Lock and F12 belong to lead_autopilot - Owlman never uses them.)
+;   (Win and Caps Lock belong to lead_autopilot - Owlman never uses them.)
 ; While ON: calls the lead; nobody answers in time -> hang up, No Contact,
 ;   next lead. Keeps going until someone picks up, then beeps and stops.
 ;   Your speakers/headset stay muted while it rings (never your microphone).
@@ -26,8 +26,8 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ;   time as a lead_autopilot key like Caps Lock).
 ;
 ; It never changes lead_autopilot or its saved spots: it only READS the spots
-; from lead_points.ini (Win, Caps Lock and F12 setups) and keeps its own one
-; spot (the ringing sign) in owlman_points.ini.
+; from lead_points.ini (Win and Caps Lock setups) and keeps its own two
+; spots (the green phone and the ringing sign) in owlman_points.ini.
 ; =====================================================
 
 ; Timing changes a little every call (random within these ranges, in ms), and
@@ -179,47 +179,79 @@ ReleaseStuckKeys() {
             Send "{Blind}{" k " up}"
 }
 
-; ---------- SETUP (one spot: the ringing sign) ----------
+; ---------- SETUP (two spots: the green phone and the ringing sign) ----------
 #HotIf SetupOn
-LButton::RecordRinging()
+LButton::RecordSpot()
 #HotIf
 
-StartRingingSetup(phone) {
-    global SetupOn
-    Log("SETUP: calling so the ringing sign shows")
-    if WaitForSpot(phone) {
-        ClickAt(phone[1], phone[2], true)
-        Log(" setup: phone clicked")
+; key = "phone" (step 1) or "ringing" (step 2). dialFirst: start a call for
+; step 2 (only when step 1 was done earlier - step 1's click already calls).
+StartOwlSetup(key, dialFirst := false) {
+    global SetupOn := key
+    Panel.Show("NoActivate")
+    if (key = "phone") {
+        SetStatus("Setup 1 of 2: click the green phone.")
+        ToolTip "OWLMAN DIALS SETUP (1 of 2)`n`nOpen a normal lead in VanillaSoft.`nClick the GREEN phone icon next to the lead's number.`n(This calls them - that's fine, it's needed for step 2.)`n`n(Esc or Right Alt = cancel)", 10, 10
+        return
+    }
+    phone := LoadPts(OwnIni, "autodial", ["phone"])
+    if dialFirst && phone && !SpotVisible(RedSpot()) {     ; no call going yet: start one so it rings
+        Log("SETUP: calling so the ringing sign shows")
+        p := phone["phone"]
+        ClickAt(p[1], p[2], true)
         Sleep 300               ; let the click land before the setup message pops up over the screen
     }
-    SetupOn := true
-    Panel.Show("NoActivate")
-    msg := "OWLMAN DIALS SETUP`n`nThe lead is being called (F12 calls again).`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n`n(Esc or Right Alt = cancel)"
-    ToolTip msg, 10, 10
-    SetStatus("Setup: click the ringing sign.")
+    SetStatus("Setup 2 of 2: click the ringing sign.")
+    ToolTip "OWLMAN DIALS SETUP (2 of 2)`n`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n(Stopped ringing? Click the green phone again to call again.)`n`n(Esc or Right Alt = cancel)", 10, 10
 }
 
-RecordRinging() {
+; The red hang-up spot from your Caps Lock setup (read only), or a spot that never matches
+RedSpot() {
+    hang := LoadPts(MainIni, "hangup2", ["hangup"])
+    return hang ? hang["hangup"] : [-100, -100, -1, -1]
+}
+
+; Remember where (and what color) the clicked spot is.
+RecordSpot() {
     global SetupOn
     MouseGetPos &x, &y, &win
     if (win = Panel.Hwnd) {     ; a click on the Owlman box (like Turn OFF): let it through
         Click
         return
     }
-    Sleep 250
+    key := SetupOn
+    if (key = "ringing") {      ; a click on the green phone = call again, not the ringing sign
+        phone := LoadPts(OwnIni, "autodial", ["phone"])
+        if phone && Abs(x - phone["phone"][1]) <= 20 && Abs(y - phone["phone"][2]) <= 20 {
+            ClickAt(x, y, true)
+            return
+        }
+    }
+    ToolTip                     ; hide the instructions, in case they sit over the spot
+    Sleep 250                   ; let the hover highlight finish fading in
     c := PixelGetColor(x, y)
     MouseMove 1, 1
     Sleep 150
     idle := PixelGetColor(x, y)
     MouseMove x, y
+    Sleep 100
     if !Distinct(c) && !Distinct(idle) {
-        ToolTip "That spot is plain white or gray.`nClick right ON the colored part or the dark text of the ringing sign.`n`n(Esc = cancel)", 10, 10
+        ToolTip "That spot is plain white or gray.`nClick right ON the colored part of the " (key = "phone" ? "green phone" : "ringing sign") ".`n`n(Esc or Right Alt = cancel)", 10, 10
         return
     }
-    IniWrite x "," y "," c "," idle, OwnIni, "autodial", "ringing"
-    Log("SETUP ringing at " x "," y " hover=" c " idle=" idle)
-    SetupOn := false
+    IniWrite x "," y "," c "," idle, OwnIni, "autodial", key
+    Log("SETUP " key " at " x "," y " hover=" c " idle=" idle)
     SoundBeep 1200, 60
+    if (key = "phone") {
+        ClickAt(x, y, true)     ; the real click: calls the lead
+        Sleep 300
+        if !LoadPts(OwnIni, "autodial", ["ringing"])
+            return StartOwlSetup("ringing")     ; on to step 2
+        SetupOn := false
+        Panel.Hide()
+        return Flash("Setup saved!`nHang up this call (Caps Lock), then tap Right Alt to start Owlman Dials.", 6000)
+    }
+    SetupOn := false
     Panel.Hide()
     Flash("Setup saved!`nHang up this call (Caps Lock), then tap Right Alt to start Owlman Dials.", 6000)
 }
@@ -237,16 +269,19 @@ DoAutoDial() {
         Log("not starting: lead_autopilot is in the middle of something")
         return Flash("Your main hotkey is still working.`nWait for it to finish, then tap Right Alt again.", 3000)
     }
-    call := LoadPts(MainIni, "call", ["call"])
     hang := LoadPts(MainIni, "hangup2", ["hangup", "nocontact"])
     env  := LoadPts(MainIni, "points", ["email"])
-    if !call || !hang || !env
-        return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win, Caps Lock and F12). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
-    phone := call["call"], red := hang["hangup"], noc := hang["nocontact"], env := env["email"]
-    ring := LoadPts(OwnIni, "autodial", ["ringing"])
-    if !ring
-        return StartRingingSetup(phone)
-    ring := ring["ringing"]
+    if !hang || !env
+        return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
+    red := hang["hangup"], noc := hang["nocontact"], env := env["email"]
+    own := LoadPts(OwnIni, "autodial", ["phone"])
+    if !own
+        return StartOwlSetup("phone")
+    phone := own["phone"]
+    own := LoadPts(OwnIni, "autodial", ["ringing"])
+    if !own
+        return StartOwlSetup("ringing", true)
+    ring := own["ringing"]
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
     Panel.Show("NoActivate")
@@ -541,7 +576,7 @@ WaitGoneOrBack(ring, red, ms) {
 ; next Right Alt tap redoes that setup.
 BadRingingSpot(why) {
     Log("STOPPED: ringing sign spot is wrong (" why ")")
-    try IniDelete OwnIni, "autodial"
+    try IniDelete OwnIni, "autodial", "ringing"     ; only the ringing sign
     Flash("Owlman Dials stopped: the ringing sign I saved doesn't work`n(" why ").`nTap Right Alt to set it up again.", 6000)
 }
 
