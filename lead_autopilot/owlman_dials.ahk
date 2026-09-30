@@ -19,26 +19,28 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ;   Right Alt + another key still works like a normal Alt key.
 ;   (Win and Caps Lock belong to lead_autopilot - Owlman never uses them.)
 ; While ON: calls the lead; nobody answers in time -> hang up, No Contact,
-;   next lead. Keeps going until someone picks up, then beeps and stops.
+;   and your dialer calls the next lead by itself (Owlman never clicks the
+;   phone - your dialer does all the calling). Keeps going until someone picks up, then beeps and stops.
 ;   Your speakers/headset stay muted while it rings (never your microphone).
 ;   A lead with NO email button is a special lead: it stops without calling it.
 ; Esc, any other key, or moving the mouse stops a run (so it never runs at the same
 ;   time as a lead_autopilot key like Caps Lock).
 ;
 ; It never changes lead_autopilot or its saved spots: it only READS the spots
-; from lead_points.ini (Win and Caps Lock setups) and keeps its own two
-; spots (the green phone and the ringing sign) in owlman_points.ini.
+; from lead_points.ini (Win and Caps Lock setups) and keeps its own one
+; spot (the ringing sign) in owlman_points.ini.
 ; =====================================================
 
 ; Timing changes a little every call (random within these ranges, in ms), and
 ; every LongEvery dials one call is a "long" one where everything takes longer.
 global RingMin := 18000, RingMax := 23000         ; ringing with no answer before hanging up
-global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact, and before calling the next lead
+global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact
 global LongRingMin := 28000, LongRingMax := 30000 ; the same, on a long dial
 global LongPauseMin := 5000, LongPauseMax := 7000
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
-global DialWait      := 8000    ; ms to wait for ringing to start after clicking the green phone
+global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
+global DialWait      := 8000    ; ms to wait for ringing to start once a call is going
 global AnsweredConfirmMs := 800 ; ringing sign must stay gone this long (red button still there) = answered
 global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
 global HangupSkipMs  := 3000    ; red hang-up button not found in this long = call's already over
@@ -179,53 +181,25 @@ ReleaseStuckKeys() {
             Send "{Blind}{" k " up}"
 }
 
-; ---------- SETUP (two spots: the green phone and the ringing sign) ----------
+; ---------- SETUP (one spot: the ringing sign) ----------
 #HotIf SetupOn
-LButton::RecordSpot()
+LButton::RecordRinging()
 #HotIf
 
-; key = "phone" (step 1) or "ringing" (step 2). dialFirst: start a call for
-; step 2 (only when step 1 was done earlier - step 1's click already calls).
-StartOwlSetup(key, dialFirst := false) {
-    global SetupOn := key
+StartRingingSetup() {
+    global SetupOn := true
     Panel.Show("NoActivate")
-    if (key = "phone") {
-        SetStatus("Setup 1 of 2: click the green phone.")
-        ToolTip "OWLMAN DIALS SETUP (1 of 2)`n`nOpen a normal lead in VanillaSoft.`nClick the GREEN phone icon next to the lead's number.`n(This calls them - that's fine, it's needed for step 2.)`n`n(Esc or Right Alt = cancel)", 10, 10
-        return
-    }
-    phone := LoadPts(OwnIni, "autodial", ["phone"])
-    if dialFirst && phone && !SpotVisible(RedSpot()) {     ; no call going yet: start one so it rings
-        Log("SETUP: calling so the ringing sign shows")
-        p := phone["phone"]
-        ClickAt(p[1], p[2], true)
-        Sleep 300               ; let the click land before the setup message pops up over the screen
-    }
-    SetStatus("Setup 2 of 2: click the ringing sign.")
-    ToolTip "OWLMAN DIALS SETUP (2 of 2)`n`nWhile it's RINGING, click the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n(Stopped ringing? Click the green phone again to call again.)`n`n(Esc or Right Alt = cancel)", 10, 10
+    SetStatus("Setup: click the ringing sign.")
+    ToolTip "OWLMAN DIALS SETUP`n`nWhen your dialer is calling a lead and it's RINGING,`nclick the sign on the softphone that shows it's ringing`n(like the word 'Ringing'). Pick one that doesn't blink.`nThis click does nothing to the call.`n`n(Esc or Right Alt = cancel)", 10, 10
 }
 
-; The red hang-up spot from your Caps Lock setup (read only), or a spot that never matches
-RedSpot() {
-    hang := LoadPts(MainIni, "hangup2", ["hangup"])
-    return hang ? hang["hangup"] : [-100, -100, -1, -1]
-}
-
-; Remember where (and what color) the clicked spot is.
-RecordSpot() {
+; Remember where (and what color) the ringing sign is. The click is not passed on.
+RecordRinging() {
     global SetupOn
     MouseGetPos &x, &y, &win
     if (win = Panel.Hwnd) {     ; a click on the Owlman box (like Turn OFF): let it through
         Click
         return
-    }
-    key := SetupOn
-    if (key = "ringing") {      ; a click on the green phone = call again, not the ringing sign
-        phone := LoadPts(OwnIni, "autodial", ["phone"])
-        if phone && Abs(x - phone["phone"][1]) <= 20 && Abs(y - phone["phone"][2]) <= 20 {
-            ClickAt(x, y, true)
-            return
-        }
     }
     ToolTip                     ; hide the instructions, in case they sit over the spot
     Sleep 250                   ; let the hover highlight finish fading in
@@ -234,26 +208,16 @@ RecordSpot() {
     Sleep 150
     idle := PixelGetColor(x, y)
     MouseMove x, y
-    Sleep 100
     if !Distinct(c) && !Distinct(idle) {
-        ToolTip "That spot is plain white or gray.`nClick right ON the colored part of the " (key = "phone" ? "green phone" : "ringing sign") ".`n`n(Esc or Right Alt = cancel)", 10, 10
+        ToolTip "That spot is plain white or gray.`nClick right ON the colored part or the dark text of the ringing sign.`n`n(Esc or Right Alt = cancel)", 10, 10
         return
     }
-    IniWrite x "," y "," c "," idle, OwnIni, "autodial", key
-    Log("SETUP " key " at " x "," y " hover=" c " idle=" idle)
-    SoundBeep 1200, 60
-    if (key = "phone") {
-        ClickAt(x, y, true)     ; the real click: calls the lead
-        Sleep 300
-        if !LoadPts(OwnIni, "autodial", ["ringing"])
-            return StartOwlSetup("ringing")     ; on to step 2
-        SetupOn := false
-        Panel.Hide()
-        return Flash("Setup saved!`nHang up this call (Caps Lock), then tap Right Alt to start Owlman Dials.", 6000)
-    }
+    IniWrite x "," y "," c "," idle, OwnIni, "autodial", "ringing"
+    Log("SETUP ringing at " x "," y " hover=" c " idle=" idle)
     SetupOn := false
+    SoundBeep 1200, 60
     Panel.Hide()
-    Flash("Setup saved!`nHang up this call (Caps Lock), then tap Right Alt to start Owlman Dials.", 6000)
+    Flash("Setup saved!`nTap Right Alt to start Owlman Dials.", 5000)
 }
 
 ; ---------- OWLMAN DIALS ----------
@@ -274,51 +238,51 @@ DoAutoDial() {
     if !hang || !env
         return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
     red := hang["hangup"], noc := hang["nocontact"], env := env["email"]
-    own := LoadPts(OwnIni, "autodial", ["phone"])
-    if !own
-        return StartOwlSetup("phone")
-    phone := own["phone"]
     own := LoadPts(OwnIni, "autodial", ["ringing"])
     if !own
-        return StartOwlSetup("ringing", true)
+        return StartRingingSetup()
     ring := own["ringing"]
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
     Panel.Show("NoActivate")
     SetStatus("Starting...`nTap Right Alt (or any key) = OFF.")
-    KeepPanelClear([phone, red, noc, ring, env])
+    KeepPanelClear([red, noc, ring, env])
     Log("RUN Owlman Dials")
     SpeakersMuted(true)         ; no ringing in your ears; sound comes back when someone picks up
     try
-        return AutoDialLoop(phone, red, noc, ring, env)
+        return AutoDialLoop(red, noc, ring, env)
     finally
         SpeakersMuted(false)    ; however it stops, you always get your sound back
 }
 
-AutoDialLoop(phone, red, noc, ring, env) {
+AutoDialLoop(red, noc, ring, env) {
     n := 0
     afterNoContact := false
     Loop {
         n += 1
         SpeakersMuted(true)
         t := PickTiming()
-        Log(" call " n (t.long ? " (LONG dial)" : "") ": ring up to " t.ring "ms, waits " t.dialPause "/" t.noContactPause "ms")
-        ; 1. Start the call (unless VanillaSoft already started one by itself)
-        if SpotVisible(red) {
-            Log(" call " n ": a call is already going, not clicking the phone")
-            if !EmailShowing(env)
-                return Stopped() ? Fail("") : SpecialLead(true)
-        } else {
-            if StaysVisible(ring, 500)
-                return BadRingingSpot("it shows even with no call going")
-            r := DialLead(phone, red, env, afterNoContact, afterNoContact ? t.dialPause : 0)
-            if (r = "special")
-                return Stopped() ? Fail("") : SpecialLead(false)
-            if (r = "auto" && !EmailShowing(env))
-                return Stopped() ? Fail("") : SpecialLead(true)
-            if !r
-                return Fail("green phone icon")
+        Log(" call " n (t.long ? " (LONG dial)" : "") ": ring up to " t.ring "ms, wait before No Contact " t.noContactPause "ms")
+        ; 1. Your dialer does the calling - Owlman never clicks the phone.
+        if !SpotVisible(red) && StaysVisible(ring, 500)
+            return BadRingingSpot("it shows even with no call going")
+        Status(n, "waiting for the dialer's call...")
+        r := WaitForCall(red, env, ring, afterNoContact)
+        Log(" call " n ": " r)
+        if (r = "")
+            return Fail("")
+        if (r = "none")
+            return Fail("a call (your dialer didn't call the lead)")
+        if (r = "answered")
+            return Alert("SOMEONE ANSWERED - go!", "answered on call " n)
+        if (r = "ended") {              ; they declined right away: No Contact, next
+            if !HangUpAndNoContact(red, noc, false, 0, t.noContactPause)
+                return
+            afterNoContact := true
+            continue
         }
+        if !EmailShowing(env)           ; special lead: already dialing, it's yours
+            return Stopped() ? Fail("") : SpecialLead(true)
         ; 2. Wait for it to start ringing
         Status(n, "dialing...")
         if !WaitRinging(ring) {
@@ -406,50 +370,45 @@ HangUpAndNoContact(red, noc, hangUp, ring := 0, pauseMs := 0) {
     return true
 }
 
-; Click the green phone once the lead's page is ready. Right after No Contact the
-; old lead's phone icon is still showing, so first wait for the page to change.
-; No email button on the new lead = special lead: don't call it.
-; Returns "clicked", "auto" (a call started by itself), "special", or "" (failed).
-DialLead(p, red, env, afterNoContact, pauseMs := 0) {
-    start := A_TickCount
-    seenGone := !afterNoContact
-    nudge := 0
-    MouseMove p[1], p[2]
-    while (A_TickCount - start < ReloadWait + Timeout) {
+; Wait for your dialer's call (the red hang-up button shows). After No Contact
+; the page also reloads to the next lead: wait for that too (the envelope goes
+; away and comes back), so the special-lead check looks at the NEW lead.
+; The call is watched the whole time: if they pick up or hang up during this
+; wait, that's handled right away (sound comes straight back on a pickup).
+; Returns "call", "answered", "ended", "none" (no call came), or "" (stopped).
+WaitForCall(red, env, ring, afterNoContact) {
+    start := A_TickCount, envGone := false, callSeen := 0, ringSeen := false
+    Loop {
         if Stopped()
             return ""
-        if SpotVisible(red) {       ; VanillaSoft dialed the next lead by itself
-            Log("  a call started by itself, not clicking the phone")
-            return "auto"
+        if !SpotVisible(env)
+            envGone := true
+        if (!callSeen && SpotVisible(red)) {
+            callSeen := A_TickCount
+            Log("  call going after " (callSeen - start) "ms")
         }
-        if SpotVisible(p) && (seenGone || A_TickCount - start > ReloadWait) {
-            if !EmailShowing(env)
-                return "special"
-            if pauseMs {
-                if !Pause(pauseMs, "next call in")
+        if callSeen {
+            if SpotVisible(ring)
+                ringSeen := true
+            else if ringSeen && SpotVisible(red) {
+                ; ringing stopped with the call still up: picked up?
+                SpeakersMuted(false)
+                if StaysGone(ring, AnsweredConfirmMs) && SpotVisible(red)
+                    return "answered"
+                if Stopped()
                     return ""
-                pauseMs := 0
-                start := A_TickCount, seenGone := true
-                if SpotVisible(red) {   ; VanillaSoft dialed it by itself meanwhile
-                    Log("  a call started by itself, not clicking the phone")
-                    return "auto"
-                }
-                MouseMove p[1], p[2]
-                continue            ; look at the phone icon again, then click
+                SpeakersMuted(true)     ; just a flicker
             }
-            Sleep Settle
-            ClickAt(p[1], p[2], true)
-            Log("  phone clicked after " (A_TickCount - start) "ms")
-            return "clicked"
+            if !SpotVisible(red) && StaysGone(red, 300)
+                return "ended"          ; declined / busy already
+            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - callSeen > ReloadWait)
+                return "call"
+        } else if (A_TickCount - start > NextCallWait) {
+            Log("  no call after " NextCallWait "ms: saw " SeenAt(red) " at the hang-up spot")
+            return "none"
         }
-        if !SpotVisible(p)
-            seenGone := true
-        if (Mod(A_Index, 6) = 0)    ; wiggle 1px so Chrome refreshes the hover color
-            MouseMove p[1] + (nudge := !nudge), p[2]
-        Sleep 10
+        Sleep 20
     }
-    Log("  NOT FOUND at " p[1] "," p[2] ": saw " SeenAt(p) ", wanted " Hex(p[3]) " or " Hex(p[4]))
-    return ""
 }
 
 ; Is the lead's email envelope there? Hovers it like the Win run does and gives
@@ -499,8 +458,7 @@ PickTiming() {
         DialsUntilLong := Random(LongEveryMin, LongEveryMax)
     return {long: long
         , ring: long ? Random(LongRingMin, LongRingMax) : Random(RingMin, RingMax)
-        , noContactPause: long ? Random(LongPauseMin, LongPauseMax) : Random(PauseMin, PauseMax)
-        , dialPause: long ? Random(LongPauseMin, LongPauseMax) : Random(PauseMin, PauseMax)}
+        , noContactPause: long ? Random(LongPauseMin, LongPauseMax) : Random(PauseMin, PauseMax)}
 }
 
 ; Wait ms (stops early on Esc / key / mouse), showing a countdown in the box
