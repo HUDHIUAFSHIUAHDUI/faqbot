@@ -13,9 +13,11 @@ SetKeyDelay -1
 try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 
 ; ===================== OWLMAN DIALS =====================
-; A SEPARATE add-on to lead_autopilot. It is OFF unless you double-click this file.
-;   ON:  double-click owlman_dials.  A small "OWLMAN DIALS is ON" box shows.
-;   OFF: click "Turn OFF" in that box. Nothing of it keeps running.
+; A SEPARATE add-on to lead_autopilot. It starts ASLEEP: while asleep it does
+; nothing at all except listen for F9 (F11 works like normal).
+;   F9 = turn ON.  A small "OWLMAN DIALS is ON" box shows.
+;   F9 again (or "Turn OFF" in the box) = turn OFF: stops any run, sound back on,
+;   box goes away, asleep again.
 ; While ON, F11 = call the lead; nobody answers in time -> hang up, No Contact,
 ;   next lead. Keeps going until someone picks up, then beeps and stops.
 ;   Your speakers/headset stay muted while it rings (never your microphone).
@@ -45,6 +47,7 @@ global OwnIni  := A_ScriptDir "\owlman_points.ini"   ; the ringing sign
 global LogFile := A_ScriptDir "\owlman_log.txt"
 global Abort := false, UserMoved := false, Running := false, RunStart := 0
 global SetupOn := false
+global OwlOn := false          ; asleep until F9
 
 ; ---------- ON/OFF BOX ----------
 global Panel := Gui("+AlwaysOnTop +ToolWindow -MinimizeBox", "Owlman Dials")
@@ -52,9 +55,32 @@ Panel.SetFont("s10 bold", "Segoe UI")
 Panel.Add("Text", "c008800", "OWLMAN DIALS is ON")
 Panel.SetFont("s9 norm")
 global PanelStatus := Panel.Add("Text", "w230 r3", "Tap F11 to start.`nAny key or mouse move = stop.")
-Panel.Add("Button", "w230 h32", "Turn OFF").OnEvent("Click", (*) => ExitApp())
-Panel.OnEvent("Close", (*) => ExitApp())
-Panel.Show("x10 y" (A_ScreenHeight - 230) " NoActivate")
+Panel.Add("Button", "w230 h32", "Turn OFF  (F9)").OnEvent("Click", (*) => OwlOff())
+Panel.OnEvent("Close", (*) => OwlOff())
+Panel.Show("Hide x10 y" (A_ScreenHeight - 230))    ; placed, but hidden while asleep
+if (A_Args.Length && A_Args[1] = "on")   ; restarted as administrator while ON
+    SetTimer OwlOnNow, -100
+else
+    Flash("Owlman Dials is ready (asleep).`nPress F9 to turn it on.", 4000)
+
+; ---------- ON / OFF (F9) ----------
+F9::(OwlOn ? OwlOff() : OwlOnNow())
+
+OwlOnNow() {
+    global OwlOn := true
+    SetStatus("Tap F11 to start.`nAny key or mouse move = stop.")
+    Panel.Show("NoActivate")
+    Log("ON")
+    Flash("Owlman Dials ON", 1500)
+}
+
+OwlOff() {
+    global OwlOn := false, Abort := true, SetupOn := false
+    SpeakersMuted(false)        ; a run in progress also stops and unmutes by itself
+    Panel.Hide()
+    Log("OFF")
+    Flash("Owlman Dials OFF", 1500)
+}
 
 SetStatus(msg) {
     try PanelStatus.Value := msg
@@ -95,8 +121,11 @@ OwlmanError(e, *) {
 }
 
 ; ---------- KEYS ----------
+#HotIf OwlOn                   ; asleep = F11 does its normal thing
 *F11::TriggerRun(DoAutoDial)
+#HotIf
 
+#HotIf OwlOn
 ~Esc:: {
     global Abort := true
     global SetupOn
@@ -106,6 +135,7 @@ OwlmanError(e, *) {
         SetStatus("Tap F11 to start.`nAny key or mouse move = stop.")
     }
 }
+#HotIf
 
 TriggerRun(fn) {
     if !Running
@@ -182,7 +212,7 @@ RecordRinging() {
 DoAutoDial() {
     global Abort := false
     global UserMoved := false
-    if SetupOn
+    if SetupOn || !OwlOn
         return
     call := LoadPts(MainIni, "call", ["call"])
     hang := LoadPts(MainIni, "hangup2", ["hangup", "nocontact"])
@@ -636,7 +666,7 @@ RestartAsAdminIfNeeded(hwnd) {
         return
     Flash("The softphone runs as administrator.`nRestarting Owlman Dials as administrator - click Yes.", 4000)
     try {
-        Run '*RunAs "' A_AhkPath '" /restart "' A_ScriptFullPath '"'
+        Run '*RunAs "' A_AhkPath '" /restart "' A_ScriptFullPath '" on'   ; come back ON
         ExitApp
     }
 }
@@ -655,14 +685,15 @@ IsProcessElevated(pid) {
 }
 
 Fail(name) {
-    Log("STOPPED: " (UserMoved ? "you used the mouse or keyboard" : Abort ? "Esc pressed" : name = "" ? "stopped" : "couldn't find " name))
+    Log("STOPPED: " (!OwlOn ? "turned OFF" : UserMoved ? "you used the mouse or keyboard" : Abort ? "Esc pressed" : name = "" ? "stopped" : "couldn't find " name))
     if UserMoved
         msg := "Stopped - you used the mouse or keyboard."
     else if Abort || name = ""
         msg := "Stopped."
     else
         msg := "Couldn't find: " name
-    Flash(msg, 3000)
+    if OwlOn
+        Flash(msg, 3000)
     SetStatus(msg "`nTap F11 to start again.")
 }
 
