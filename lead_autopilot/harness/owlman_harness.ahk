@@ -60,7 +60,10 @@ EnvClick(*) {
     Out("  [fake] envelope clicked")
     if (Scenario = "slowtmpl")          ; like the log: the spot never changes color, but the
         SetTimer () => (TmplReady := true), -2000       ; template list takes ~2 s to really load
-    else
+    else if (Scenario = "fastpage") {   ; the email window covers the envelope at once,
+        SetTimer () => SetC(cEnv, OFF), -200            ; and the list is ready 0.7 s after the click
+        SetTimer () => (SetC(cTmpl, TMPL), TmplReady := true), -700
+    } else
         SetC(cTmpl, TMPL), TmplReady := true
 }
 TmplClick(*) {

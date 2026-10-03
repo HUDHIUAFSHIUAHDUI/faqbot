@@ -38,8 +38,8 @@ global Timeout        := 5000   ; ms to wait for a button before giving up
 global ColorTolerance := 40     ; raise if it stalls on a button that IS showing
 global SpotSlack      := 4      ; px around a saved spot where its color may show
 global AmbiguousCap   := 800    ; ms max extra wait when a spot looked "ready" before the page changed
-global TemplateWait   := 3000   ; the same for NCCTeam and Next: the template list can load slowly,
-                                ; and clicking NCCTeam before it's there gave a BLANK email
+global TemplateWait   := 3000   ; NCCTeam / Next: max wait for their page to show up
+global TemplateSettle := 600    ; ...then this pause so the list finishes loading
 global SendGoneMs     := 500    ; Send button gone this long = email sent
 global SendStuckMs    := 1000   ; Send button still there this long after a click = click again
 global HoldScrollMs   := 700    ; ms to hold the mouse on the scrollbar if the quick jump didn't work
@@ -349,7 +349,12 @@ DoRun() {
             continue
         }
         Log(" " key ": looking")
-        if !WaitForSpot(p, ambiguous, (key = "tmpl" || key = "next") ? TemplateWait : AmbiguousCap)
+        if (key = "tmpl" || key = "next") {
+            if !WaitPageChange(pts[EmailSteps[i - 1][1]])
+                return Fail("")
+            ambiguous := false      ; already waited for the new page
+        }
+        if !WaitForSpot(p, ambiguous)
             return Fail(step[3])
         Sleep Settle
         ; If the next button's spot ALREADY looks ready before we click (e.g. plain
@@ -581,6 +586,38 @@ WaitGone(p, ms) {
         Sleep 10
     }
     return false
+}
+
+; After clicking a button that opens a new page (envelope -> templates, NCCTeam ->
+; Next), wait for that page: the button just clicked goes away and stays away
+; (a click's own flash doesn't count), then a short pause so the list finishes
+; drawing. Quick when the page is quick; at most TemplateWait when nothing
+; visibly changes. (Clicking NCCTeam before its list loaded = a BLANK email.)
+WaitPageChange(prev) {
+    start := A_TickCount
+    while (A_TickCount - start < TemplateWait) {
+        if Stopped()
+            return false
+        if !SpotVisible(prev) {
+            goneAt := A_TickCount, back := false
+            while (A_TickCount - goneAt < 300) {
+                if Stopped()
+                    return false
+                if SpotVisible(prev) {
+                    back := true
+                    break
+                }
+                Sleep 10
+            }
+            if !back {
+                Log("  page changed after " (A_TickCount - start) "ms")
+                return WaitMs(TemplateSettle)
+            }
+        }
+        Sleep 10
+    }
+    Log("  page never looked different, waited " TemplateWait "ms")
+    return true
 }
 
 StaysVisible(p, ms) {
