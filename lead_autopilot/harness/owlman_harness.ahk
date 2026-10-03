@@ -54,8 +54,23 @@ SendDone() {
 }
 cExt.OnEvent("Click", ExtClick)
 cUpl.OnEvent("Click", (*) => Out("  [fake] lead uploaded"))
-cEnv.OnEvent("Click", (*) => (Out("  [fake] envelope clicked"), SetC(cTmpl, TMPL)))
-cTmpl.OnEvent("Click", (*) => (SetC(cTmpl, OFF), SetC(cNxt, NXT)))
+global TmplReady := false
+EnvClick(*) {
+    global TmplReady := false
+    Out("  [fake] envelope clicked")
+    if (Scenario = "slowtmpl")          ; like the log: the spot never changes color, but the
+        SetTimer () => (TmplReady := true), -2000       ; template list takes ~2 s to really load
+    else
+        SetC(cTmpl, TMPL), TmplReady := true
+}
+TmplClick(*) {
+    Out("  [fake] NCCTeam clicked " (TmplReady ? "(template loaded)" : "TOO EARLY -> BLANK EMAIL"))
+    SetC(cTmpl, OFF), SetC(cNxt, NXT)
+}
+cEnv.OnEvent("Click", EnvClick)
+cTmpl.OnEvent("Click", TmplClick)
+if (Scenario = "slowtmpl")
+    SetC(cTmpl, TMPL)
 cNxt.OnEvent("Click", (*) => (SetC(cNxt, OFF), SetC(cSb, SB), SetTimer(() => SetC(cSnd, SND), -500)))
 cSnd.OnEvent("Click", SendClick)
 cPhone.OnEvent("Click", (*) => StartFakeCall("!!! OWLMAN CLICKED THE PHONE (bug)"))
@@ -82,7 +97,7 @@ RedClick(*) {
 }
 Reload_() {      ; page reloads: the page buttons blink off for a moment
     SetC(cNoc, OFF), SetC(cPhone, OFF), SetC(cEnv, OFF)
-    SetTimer () => (SetC(cNoc, NOC), SetC(cPhone, PHONE), SetC(cEnv, ENV)), -400
+    SetTimer () => (SetC(cNoc, NOC), SetC(cPhone, PHONE), SetC(cEnv, ENV), (Scenario = "slowtmpl" ? SetC(cTmpl, TMPL) : 0)), -400
 }
 NocClick(*) {
     global Abort

@@ -48,6 +48,8 @@ global Timeout       := 5000    ; ms to wait for a button before giving up
 global ColorTolerance := 40
 global SpotSlack     := 4
 global AmbiguousCap  := 800
+global TemplateWait   := 3000   ; the same for NCCTeam and Next: the template list can load slowly,
+                                ; and clicking NCCTeam before it's there gave a BLANK email
 global UploadWait    := 1200    ; the email flow's timings, same as lead_autopilot's
 global SendGoneMs    := 500
 global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
@@ -419,7 +421,7 @@ SendEmail(pts) {
             Log(" upload: popup didn't open, clicking the Lead Scraper icon again")
             Click pts["ext"][1], pts["ext"][2]
         }
-        if !WaitForSpot(p, ambiguous, AmbiguousCap, EmailStepWait)
+        if !WaitForSpot(p, ambiguous, (key = "tmpl" || key = "next") ? TemplateWait : AmbiguousCap, EmailStepWait)
             return Fail(EmailNames[key])
         Sleep Settle
         ; If the next button's spot ALREADY looks ready before we click, don't

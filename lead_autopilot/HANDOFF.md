@@ -69,6 +69,7 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.
   - Upload popup sometimes didn't open: if Upload doesn't show in 4 s, click the Lead Scraper icon once more.
+  - **Blank email bug (10/03, both files):** after the envelope click, NCCTeam (and Next) were clicked after a fixed 0.8 s (`AmbiguousCap`) because their spots look the same before and after the page changes (log: always "found after ~813ms"). On a slow load NCCTeam was clicked before the template list existed, so Next opened a BLANK email and Send raised VanillaSoft's "The Subject is blank. Send anyway?" box. Fix: `TemplateWait := 3000` for tmpl and next, in **both** `owlman_dials.ahk` and `lead_autopilot.ahk` (Brendan asked for both files to be fixed; this is the only change to the main script). Neither script ever clicks Confirm. Harness scenario `slowtmpl` reproduces it.
   - Email steps get 8 s each (`EmailStepWait`); No Contact gets 15 s (`NoContactWait`), since it was sometimes gray (0xCBCBCB) for over 8 s after hanging up.
 - Next: get `owlman_log.txt` after his first runs; tune `NextCallWait`, `ReloadWait`, `EnvelopeWait`.
 - Open offers: a smaller or secret-looking box, and starting Owlman with Windows.
@@ -87,6 +88,7 @@ Setup: Wine and Xvfb, plus AutoHotkey v2.0.18 from `github.com/AutoHotkey/AutoHo
   - `toggle`: turning Owlman off mid-call
   - `busy`: the main script is mid-run
   - `timing`: random timing and long dials
+  - `slowsend`, `popupmiss`, `slowtmpl`: Send slow to clear, Lead Scraper popup not opening, slow template list
 - **Wine gotchas:**
   - Wine counts the script's own clicks as physical mouse input, so the harness calls `DoAutoDial()` directly instead of `RunAutomation`, to keep the mouse-stop check off.
   - `xdotool` key presses don't reach AHK hotkeys, so Right Alt can't be pressed in tests.

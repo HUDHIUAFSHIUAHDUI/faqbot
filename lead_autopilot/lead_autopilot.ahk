@@ -38,6 +38,8 @@ global Timeout        := 5000   ; ms to wait for a button before giving up
 global ColorTolerance := 40     ; raise if it stalls on a button that IS showing
 global SpotSlack      := 4      ; px around a saved spot where its color may show
 global AmbiguousCap   := 800    ; ms max extra wait when a spot looked "ready" before the page changed
+global TemplateWait   := 3000   ; the same for NCCTeam and Next: the template list can load slowly,
+                                ; and clicking NCCTeam before it's there gave a BLANK email
 global SendGoneMs     := 500    ; Send button gone this long = email sent
 global SendStuckMs    := 1000   ; Send button still there this long after a click = click again
 global HoldScrollMs   := 700    ; ms to hold the mouse on the scrollbar if the quick jump didn't work
@@ -347,7 +349,7 @@ DoRun() {
             continue
         }
         Log(" " key ": looking")
-        if !WaitForSpot(p, ambiguous)
+        if !WaitForSpot(p, ambiguous, (key = "tmpl" || key = "next") ? TemplateWait : AmbiguousCap)
             return Fail(step[3])
         Sleep Settle
         ; If the next button's spot ALREADY looks ready before we click (e.g. plain
