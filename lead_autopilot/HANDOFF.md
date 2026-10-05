@@ -32,7 +32,7 @@ Brendan sells health and life insurance. He works on a **Windows 11 tablet** wit
 ## Main script: `lead_autopilot.ahk` (unchanged from the original handoff)
 | Key | Does |
 |---|---|
-| **Win** (tap) | Email flow: Lead Scraper → Upload to SuperSalesSMS → envelope → NCCTeam template → Next → scroll → Send |
+| **Win** (tap) | Email flow: Lead Scraper → Upload to SuperSalesSMS → envelope → **_Request Quote** template (was NCCTeam until 10/05; the spot is re-recorded with the Win setup) → Next → scroll → Send |
 | **Caps Lock** | Red hang-up in VS Connect → wait for reload → No Contact |
 | F12 | Exists in the code (green phone), but Brendan says he doesn't have or use it. F12 needs Fn on his keyboard. |
 | Esc / mouse move | Stop a run. Ctrl+Alt+X quits. |

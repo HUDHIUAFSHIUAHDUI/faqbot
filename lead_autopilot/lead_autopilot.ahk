@@ -38,7 +38,7 @@ global Timeout        := 5000   ; ms to wait for a button before giving up
 global ColorTolerance := 40     ; raise if it stalls on a button that IS showing
 global SpotSlack      := 4      ; px around a saved spot where its color may show
 global AmbiguousCap   := 800    ; ms max extra wait when a spot looked "ready" before the page changed
-global TemplateWait   := 3000   ; NCCTeam / Next: max wait for their page to show up
+global TemplateWait   := 3000   ; template / Next: max wait for their page to show up
 global TemplateSettle := 600    ; ...then this pause so the list finishes loading
 global SendGoneMs     := 500    ; Send button gone this long = email sent
 global SendStuckMs    := 1000   ; Send button still there this long after a click = click again
@@ -50,7 +50,7 @@ global EmailSteps := [
     ["ext",    "Click the Lead Scraper icon (top right of Chrome).", "Lead Scraper icon"],
     ["upload", "Click 'Upload Lead to SuperSalesSMS'.", "Upload button"],
     ["email",  "Wait for the popup to close.`nThen click the blue envelope next to the email.", "email envelope icon"],
-    ["tmpl",   "Click the 'NCCTeam' template.", "NCCTeam template"],
+    ["tmpl",   "Click the '_Request Quote' template.", "_Request Quote template"],
     ["next",   "Click the blue 'Next' button.", "Next button"],
     ["scrollbar", "Wait for the email page to load.`nClick ONCE on the GRAY SCROLLBAR on the right side of the email,`nnear the BOTTOM (below the slider). I'll scroll down for you.", "scrollbar"],
     ["send",   "Click the green 'Send' button (don't scroll).`n(Can't see it? Click the scrollbar spot again.)", "Send button"]
@@ -588,11 +588,11 @@ WaitGone(p, ms) {
     return false
 }
 
-; After clicking a button that opens a new page (envelope -> templates, NCCTeam ->
+; After clicking a button that opens a new page (envelope -> templates, template ->
 ; Next), wait for that page: the button just clicked goes away and stays away
 ; (a click's own flash doesn't count), then a short pause so the list finishes
 ; drawing. Quick when the page is quick; at most TemplateWait when nothing
-; visibly changes. (Clicking NCCTeam before its list loaded = a BLANK email.)
+; visibly changes. (Clicking the template before its list loaded = a BLANK email.)
 WaitPageChange(prev) {
     start := A_TickCount
     while (A_TickCount - start < TemplateWait) {
