@@ -36,9 +36,9 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ; Timing changes a little every call (random within these ranges, in ms), and
 ; every 10-15 dials one call is a "long" one where everything takes longer.
 global RingMin := 10000, RingMax := 25000         ; let it ring this long, then hang up
-global PauseMin := 2000, PauseMax := 5000         ; wait before No Contact
+global PauseMin := 2000, PauseMax := 8000         ; wait before No Contact
 global LongRingMin := 23000, LongRingMax := 25000 ; the same, on a long dial
-global LongPauseMin := 5000, LongPauseMax := 7000
+global LongPauseMin := 8000, LongPauseMax := 15000
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
