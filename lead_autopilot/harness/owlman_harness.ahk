@@ -5,7 +5,7 @@ Out(s) => FileAppend(s "`n", "*")
 ; Fake softphone + VanillaSoft: colored squares on a borderless window at 0,0
 global PHONE := 0x00AA00, RED := 0xDD0000, NOC := 0x3366CC, ENV := 0x2266EE, OFF := 0xC0C0C0
 global EXT := 0x884400, UPL := 0x00AA88, TMPL := 0x6600AA, NXT := 0x0044CC, SB := 0x555555, SND := 0x22AA22
-global Emails := 0
+global Emails := 0, VDGRAY := 0x555A60, CLOSEC := 0x6B6B6B
 global Scenario := EnvGet("SCEN")
 global CallNo := 0
 try FileDelete A_ScriptDir "\lead_points.ini"
@@ -20,6 +20,10 @@ IniWrite "240,200," TMPL "," TMPL, ini, "points", "tmpl"
 IniWrite "240,260," NXT "," NXT, ini, "points", "next"
 IniWrite "470,300," SB "," SB, ini, "points", "scrollbar"
 IniWrite "400,360," SND "," SND, ini, "points", "send"
+if (InStr(Scenario, "vd") = 1) {     ; voicemail drop set up
+    IniWrite "40,360," VDGRAY "," VDGRAY, ini, "vdrop", "drop"
+    IniWrite "180,360," CLOSEC "," CLOSEC, ini, "vdrop", "close"
+}
 
 g := Gui("-Caption +AlwaysOnTop")
 g.BackColor := "FFFFFF"
@@ -76,6 +80,18 @@ if (Scenario = "slowtmpl")
     SetC(cTmpl, TMPL)
 cNxt.OnEvent("Click", (*) => (SetC(cNxt, OFF), SetC(cSb, SB), SetTimer(() => SetC(cSnd, SND), -500)))
 cSnd.OnEvent("Click", SendClick)
+global cDrop  := g.Add("Text", "x20 y340 w40 h40 Background" Format("{:06X}", VDGRAY))
+global cClose := g.Add("Text", "x160 y340 w40 h40 Background" Format("{:06X}", OFF))
+DropClick(*) {
+    if InStr(Scenario, "vdfail") {      ; red box (vdfail: the call is already over, like the video)
+        Out("  [fake] voicemail drop FAILED (red box shown)")
+        (Scenario = "vdfail") ? SetC(cRed, OFF) : 0
+        SetTimer () => SetC(cClose, CLOSEC), -600
+    } else
+        Out("  [fake] voicemail DROPPED")
+}
+cDrop.OnEvent("Click", DropClick)
+cClose.OnEvent("Click", (*) => (Out("  [fake] red box closed"), SetC(cClose, OFF)))
 cPhone.OnEvent("Click", (*) => StartFakeCall("!!! OWLMAN CLICKED THE PHONE (bug)"))
 cRed.OnEvent("Click", RedClick)
 cNoc.OnEvent("Click", NocClick)

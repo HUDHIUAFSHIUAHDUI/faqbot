@@ -65,6 +65,14 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 
 **Files:** reads `lead_points.ini` **read-only** (all of `points` for the email flow, plus `hangup2/hangup`, `hangup2/nocontact`). Writes only `owlman_log.txt`. `owlman_points.ini` is no longer used (safe to delete).
 
+## Voicemail drop (10/12, both files)
+Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon, under the lead's phone numbers. Clicking it shows a green "Your Voice Drop was initiated". If it fails (seen: error `VSErrorNoActiveChannel` when the call had already ended), a red **"The Voice Drop was not initiated"** box with a **Close** button appears.
+- **Setup:** `Ctrl+Alt+V` (or tray "Run Setup (voicemail drop)") in lead_autopilot, **with no call going**: click Default (it fails on purpose), then click Close on the red box. Saved as `[vdrop] drop=`, `close=` in `lead_points.ini`.
+- **Caps Lock** (main), once set up: voicemail drop, then No Contact. Failed: Close, hang up (if the red button is still there within 1.5 s), No Contact. Not set up: the old hang up + No Contact.
+- **Owlman**, once set up: email, then **right after the email** the voicemail drop (no ring timer), then No Contact (no hang-up, as he asked). Failed: Close, hang up, No Contact. Not set up: the old ring timer + hang-up.
+- Success = no red box within `VDropFailWait` (3 s), so a good drop costs ~3 s of watching. Tune from the logs.
+- Tests: Owlman harness `vdok`, `vdfail`, `vdfailup`; `harness/main_harness.ahk` (`SCEN=ok|fail|failup|nosetup`) runs the main script's Caps Lock on a fake screen.
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.

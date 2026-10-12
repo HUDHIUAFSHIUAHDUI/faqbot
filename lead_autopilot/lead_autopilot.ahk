@@ -70,8 +70,16 @@ global CallSteps := [
     ["call", "Click the GREEN phone icon next to the lead's number.", "green phone icon"]
 ]
 
+; Voicemail drop (Caps Lock, once set up with Ctrl+Alt+V): drop the voicemail, then
+; No Contact. If the drop fails: close the red box, hang up, then No Contact.
+global VDropSteps := [
+    ["drop",  "With NO call going, click 'Default' (the voicemail icon under the phone numbers).`nIt will fail with a red box - that's expected.", "voicemail 'Default' button"],
+    ["close", "Click 'Close' on the red 'The Voice Drop was not initiated' box.", "Close button on the red box"]
+]
+global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
+
 ; Which key runs each automation (shown in messages)
-global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12")
+global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12", "vdrop", "Caps Lock")
 
 global IniFile   := A_ScriptDir "\lead_points.ini"
 global LogFile   := A_ScriptDir "\lead_autopilot_log.txt"   ; what each run saw and did (for fixing misses)
@@ -86,8 +94,9 @@ global StartupLnk := A_Startup "\Lead Autopilot.lnk"
 A_TrayMenu.Insert("1&", "Run Setup (Win: email)", (*) => StartSetup())
 A_TrayMenu.Insert("2&", "Run Setup (Caps Lock: hang up + No Contact)", (*) => StartSetup(HangupSteps, "hangup2"))
 A_TrayMenu.Insert("3&", "Run Setup (F12: call)", (*) => StartSetup(CallSteps, "call"))
-A_TrayMenu.Insert("4&", "Start with Windows", ToggleStartup)
-A_TrayMenu.Insert("5&")
+A_TrayMenu.Insert("4&", "Run Setup (voicemail drop)  Ctrl+Alt+V", (*) => StartSetup(VDropSteps, "vdrop"))
+A_TrayMenu.Insert("5&", "Start with Windows", ToggleStartup)
+A_TrayMenu.Insert("6&")
 if FileExist(StartupLnk)
     A_TrayMenu.Check("Start with Windows")
 
@@ -105,6 +114,7 @@ ToggleStartup(name, *) {
 ; While setup is on, every left click is remembered (spot + color) and then
 ; passed through to the page, so the user just does the workflow once.
 ^!s::StartSetup()
+^!v::StartSetup(VDropSteps, "vdrop")    ; voicemail drop setup (do it with no call going)
 
 StartSetup(steps := EmailSteps, section := "points") {
     global SetupSteps := steps
@@ -232,7 +242,56 @@ ReleaseStuckKeys() {
             Send "{Blind}{" k " up}"
 }
 
-DoHangup() => DoClicks(HangupSteps, "hangup2")
+; Caps Lock: voicemail drop -> No Contact (failed drop: close the box, hang up,
+; No Contact). Before the voicemail drop is set up (Ctrl+Alt+V): hang up + No Contact.
+DoHangup() {
+    vd := LoadPoints(VDropSteps, "vdrop")
+    if !vd
+        return DoClicks(HangupSteps, "hangup2")
+    global Abort := false
+    global UserMoved := false
+    if SetupStep
+        return
+    pts := LoadPoints(HangupSteps, "hangup2")
+    if !pts
+        return StartSetup(HangupSteps, "hangup2")
+    KeyWait "Shift"
+    Log("RUN Caps Lock (voicemail drop)")
+    r := VoiceDrop(vd)
+    if (r = "")
+        return
+    red := pts["hangup"], noc := pts["nocontact"]
+    if (r = "failed") {
+        ; hang up ourselves (the call may already be over)
+        Log(" hangup: looking")
+        start := A_TickCount
+        while (!SpotVisible(red) && A_TickCount - start < 1500) {
+            if Stopped()
+                return Fail("")
+            Sleep 10
+        }
+        if SpotVisible(red) {
+            Sleep Settle
+            ClickAt(red[1], red[2], true)
+            Log(" hangup: clicked")
+            Loop 3 {
+                if WaitGone(red, 700)
+                    break
+                Log(" hangup: still showing, clicking again")
+                ClickAt(red[1], red[2], true)
+            }
+        } else
+            Log(" hangup: call already over")
+    }
+    Log(" nocontact: looking")
+    if !WaitForSpot(noc, true, ReloadWait)
+        return Fail("No Contact button")
+    Sleep Settle
+    ClickAt(noc[1], noc[2], true)
+    Log(" nocontact: clicked")
+    Log("RUN done")
+    Flash(r = "dropped" ? "Voicemail dropped ✔" : "Voicemail didn't go - hung up ✔")
+}
 DoCall() => DoClicks(CallSteps, "call")
 
 ; Click each saved button in order, as soon as it shows up
@@ -618,6 +677,40 @@ WaitPageChange(prev) {
     }
     Log("  page never looked different, waited " TemplateWait "ms")
     return true
+}
+
+; ---------- VOICEMAIL DROP ----------
+; Click "Default" (the voicemail under the lead's phone numbers). A failed drop
+; shows a red "The Voice Drop was not initiated" box with a Close button; a good
+; one doesn't. Returns "dropped", "failed" (box closed), or "" (stopped/not found).
+VoiceDrop(vd) {
+    d := vd["drop"], c := vd["close"]
+    Log(" vdrop: looking")
+    if !WaitForSpot(d)
+        return Fail("voicemail 'Default' button")
+    Sleep Settle
+    ClickAt(d[1], d[2], true)
+    Log(" vdrop: clicked")
+    start := A_TickCount
+    while (A_TickCount - start < VDropFailWait) {
+        if Stopped()
+            return Fail("")
+        if StaysVisible(c, 150) {
+            Log(" vdrop: FAILED (red box) - closing it")
+            Sleep Settle
+            ClickAt(c[1], c[2], true)
+            Loop 3 {
+                if WaitGone(c, 700)
+                    break
+                Log(" vdrop: box still open, clicking Close again")
+                ClickAt(c[1], c[2], true)
+            }
+            return "failed"
+        }
+        Sleep 20
+    }
+    Log(" vdrop: went through")
+    return "dropped"
 }
 
 StaysVisible(p, ms) {

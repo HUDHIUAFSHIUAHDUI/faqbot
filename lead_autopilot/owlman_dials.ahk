@@ -18,7 +18,9 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ;   Tap Right Alt again = OFF.
 ;   Right Alt + another key still works like a normal Alt key.
 ;   (Win and Caps Lock belong to lead_autopilot - Owlman never uses them.)
-; While ON, for every lead it does your Win and your Caps Lock by itself:
+; While ON, for every lead it does your Win and your Caps Lock by itself
+;   (with the voicemail drop set up: email -> voicemail drop -> No Contact;
+;   a failed drop: close the red box, hang up, No Contact). Otherwise:
 ;   the call rings -> your Win (Lead Scraper upload + email) while it rings ->
 ;   ring time's up -> hang up -> No Contact -> your dialer calls the next lead
 ;   by itself -> again. Owlman never clicks a phone.
@@ -55,6 +57,7 @@ global SendGoneMs    := 500
 global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
                                 ; (on the tablet a good click takes ~2 s to go through;
                                 ; 1 s made it click Send twice every time)
+global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
 global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
 global HoldScrollMs  := 700
@@ -195,19 +198,24 @@ DoAutoDial() {
     if !hang || !mail
         return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
     red := hang["hangup"], noc := hang["nocontact"], env := mail["email"]
+    vd := LoadPts(MainIni, "vdrop", ["drop", "close"])   ; 0 = not set up: hang up instead
+    if !vd
+        Flash("Voicemail drop isn't set up yet (Ctrl+Alt+V in lead_autopilot).`nHanging up after the ring time instead.", 5000)
     if (hw := WinExist("VS Connect"))
         RestartAsAdminIfNeeded(hw)
     Panel.Show("NoActivate")
     SetStatus("Starting...`nTap Right Alt (or any key) = OFF.")
     spots := [red, noc]
+    if vd
+        spots.Push(vd["drop"], vd["close"])
     for k, p in mail
         spots.Push(p)
     KeepPanelClear(spots)
-    Log("RUN Owlman Dials")
-    return AutoDialLoop(red, noc, env, mail)
+    Log("RUN Owlman Dials" (vd ? " (voicemail drop)" : ""))
+    return AutoDialLoop(red, noc, env, mail, vd)
 }
 
-AutoDialLoop(red, noc, env, mail) {
+AutoDialLoop(red, noc, env, mail, vd := 0) {
     n := 0
     afterNoContact := false
     Loop {
@@ -229,6 +237,19 @@ AutoDialLoop(red, noc, env, mail) {
             Status(n, "sending the email...")
             if !SendEmail(mail)
                 return
+            if vd {
+                ; 3. Drop the voicemail. Worked: just No Contact. Failed: the red
+                ; box is closed, then hang up + No Contact.
+                Status(n, "dropping the voicemail...")
+                r := VoiceDrop(vd)
+                Log(" call " n ": voicemail " r)
+                if (r = "")
+                    return
+                if !HangUpAndNoContact(red, noc, r = "failed", t.noContactPause)
+                    return
+                afterNoContact := true
+                continue
+            }
             ; 3. Let it ring. You hear it; someone answers -> you tap a key.
             r := RingFor(red, n, t.ring)
             Log(" call " n ": " r)
@@ -557,6 +578,40 @@ WaitPageChange(prev) {
     }
     Log("  page never looked different, waited " TemplateWait "ms")
     return true
+}
+
+; ---------- VOICEMAIL DROP ----------
+; Click "Default" (the voicemail under the lead's phone numbers). A failed drop
+; shows a red "The Voice Drop was not initiated" box with a Close button; a good
+; one doesn't. Returns "dropped", "failed" (box closed), or "" (stopped/not found).
+VoiceDrop(vd) {
+    d := vd["drop"], c := vd["close"]
+    Log(" vdrop: looking")
+    if !WaitForSpot(d)
+        return Fail("voicemail 'Default' button")
+    Sleep Settle
+    ClickAt(d[1], d[2], true)
+    Log(" vdrop: clicked")
+    start := A_TickCount
+    while (A_TickCount - start < VDropFailWait) {
+        if Stopped()
+            return Fail("")
+        if StaysVisible(c, 150) {
+            Log(" vdrop: FAILED (red box) - closing it")
+            Sleep Settle
+            ClickAt(c[1], c[2], true)
+            Loop 3 {
+                if WaitGone(c, 700)
+                    break
+                Log(" vdrop: box still open, clicking Close again")
+                ClickAt(c[1], c[2], true)
+            }
+            return "failed"
+        }
+        Sleep 20
+    }
+    Log(" vdrop: went through")
+    return "dropped"
 }
 
 StaysVisible(p, ms) {
