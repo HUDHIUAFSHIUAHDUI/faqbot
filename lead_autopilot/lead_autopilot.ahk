@@ -77,7 +77,6 @@ global VDropSteps := [
     ["close", "Click 'Close' on the red 'The Voice Drop was not initiated' box.", "Close button on the red box"]
 ]
 global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
-global VDropFailPauseMin := 2000, VDropFailPauseMax := 4000   ; drop failed: wait this long, then hang up
 
 ; Which key runs each automation (shown in messages)
 global KeyNames := Map("points", "Win", "hangup2", "Caps Lock", "call", "F12", "vdrop", "Caps Lock")
@@ -263,11 +262,7 @@ DoHangup() {
         return
     red := pts["hangup"], noc := pts["nocontact"]
     if (r = "failed") {
-        ; wait a moment, then hang up ourselves (the call may already be over)
-        pauseMs := Random(VDropFailPauseMin, VDropFailPauseMax)
-        Log(" vdrop: waiting " pauseMs "ms before hanging up")
-        if !WaitMs(pauseMs)
-            return Fail("")
+        ; hang up ourselves (the call may already be over)
         Log(" hangup: looking")
         start := A_TickCount
         while (!SpotVisible(red) && A_TickCount - start < 1500) {
