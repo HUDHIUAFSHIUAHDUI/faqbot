@@ -73,6 +73,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 - Success = no red box within `VDropFailWait` (3 s), so a good drop costs ~3 s of watching. Tune from the logs.
 - Tests: Owlman harness `vdok`, `vdfail`, `vdfailup`; `harness/main_harness.ahk` (`SCEN=ok|fail|failup|nosetup`) runs the main script's Caps Lock on a fake screen.
 
+**One-number leads (10/12):** with only one phone number, "Default" sits one row higher, so the saved spot hit the "Lead Status" label (looks the same gray), the "drop" seemed to go through, and the call was never hung up. Owlman now keeps a second spot, `owlman_points.ini [vdrop] drop1`, saved once with **Ctrl+Alt+D** (Owlman OFF, on a one-number lead, click Default; the click is swallowed). On each lead `TwoNumbers()` samples 9 pixels in the envelope's column at drop1's height: a colored phone icon there = two numbers (use `drop`), blank = one number (use `drop1`). Not set up = a tip at start and the old behavior. `VDropFindWait` is now 1.5 s. Harness: `vd1num`, `d1setup`.
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.

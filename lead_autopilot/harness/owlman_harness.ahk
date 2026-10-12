@@ -10,6 +10,7 @@ global Scenario := EnvGet("SCEN")
 global CallNo := 0
 try FileDelete A_ScriptDir "\lead_points.ini"
 try FileDelete A_ScriptDir "\owlman_log.txt"
+try FileDelete A_ScriptDir "\owlman_points.ini"
 ini := A_ScriptDir "\lead_points.ini"
 IniWrite "300,100," RED "," RED, ini, "hangup2", "hangup"
 IniWrite "100,300," NOC "," NOC, ini, "hangup2", "nocontact"
@@ -90,7 +91,24 @@ if (Scenario = "vdmissing") {         ; leads 2+ have no voicemail button
     }
     SetTimer NoVM, 100
 }
+; vd1num: odd calls = lead with TWO numbers, even calls = ONE number. Both
+; "Default" spots always look like the voicemail button (on the wrong layout
+; they're really the Home label / the Lead Status label), like the real page.
+global TwoNums := true, PHBLUE := 0x2B6CC4
+global cPh2   := g.Add("Text", "x80 y235 w40 h30 Background" Format("{:06X}", (Scenario = "vd1num") ? PHBLUE : 0xFFFFFF))
+global cDrop1 := g.Add("Text", "x20 y230 w40 h40 Background" Format("{:06X}", (Scenario = "vd1num") ? VDGRAY : 0xFFFFFF))
+if (Scenario = "vd1num") {
+    IniWrite "40,250," VDGRAY "," VDGRAY, A_ScriptDir "\owlman_points.ini", "vdrop", "drop1"
+    cDrop1.OnEvent("Click", (*) => Out("  [fake] " (TwoNums ? "!!! clicked the HOME label (wrong spot)" : "voicemail DROPPED (one-number lead)")))
+}
+SetLayout() {
+    global TwoNums := Mod(CallNo, 2) = 1
+    SetC(cPh2, TwoNums ? PHBLUE : 0xFFFFFF)
+    Out("  [fake] lead has " (TwoNums ? "TWO numbers" : "ONE number"))
+}
 DropClick(*) {
+    if (Scenario = "vd1num")
+        return Out("  [fake] " (TwoNums ? "voicemail DROPPED (two-number lead)" : "!!! clicked LEAD STATUS (wrong spot)"))
     if InStr(Scenario, "vdfail") {      ; red box (vdfail: the call is already over, like the video)
         Out("  [fake] voicemail drop FAILED (red box shown)")
         (Scenario = "vdfail") ? SetC(cRed, OFF) : 0
@@ -110,6 +128,8 @@ SetC(c, col) => (c.Opt("Background" Format("{:06X}", col)), c.Redraw())
 StartFakeCall(how) {
     global CallNo += 1
     Out("  [fake] " how " -> call " CallNo " at " A_TickCount)
+    if (Scenario = "vd1num")
+        SetLayout()
     SetC(cRed, RED)
     if (Scenario = "decline" && CallNo = 2)
         SetTimer EndCall, -1200         ; the lead declines call 2
@@ -179,6 +199,17 @@ if (Scenario = "nohang") {
     Sleep 500
     Out("result: " HangUpAndNoContact([300,100,RED,RED], [100,300,NOC,NOC], true))
     Out(FileRead(A_ScriptDir "\owlman_log.txt"))
+    ExitApp
+}
+if (Scenario = "d1setup") {             ; Ctrl+Alt+D setup: a white click is refused, a button click is saved
+    Sleep 500
+    SetC(cDrop1, VDGRAY), DropSetupOn := true
+    MouseMove 450, 150
+    RecordDrop1()
+    Out("after white click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
+    MouseMove 40, 250
+    RecordDrop1()
+    Out("after Default click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
     ExitApp
 }
 if (Scenario = "toggle") {
