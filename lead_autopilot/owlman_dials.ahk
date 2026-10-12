@@ -58,6 +58,7 @@ global SendStuckMs   := 4000    ; Send still showing this long after a click = c
                                 ; (on the tablet a good click takes ~2 s to go through;
                                 ; 1 s made it click Send twice every time)
 global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
+global VDropFailPauseMin := 2000, VDropFailPauseMax := 4000   ; drop failed: wait this long, then hang up
 global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
 global HoldScrollMs  := 700
@@ -245,6 +246,10 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                 Log(" call " n ": voicemail " r)
                 if (r = "")
                     return
+                if (r = "failed") {      ; wait a moment before hanging up
+                    if !Pause(Random(VDropFailPauseMin, VDropFailPauseMax), "Hanging up in")
+                        return Fail("")
+                }
                 if !HangUpAndNoContact(red, noc, r = "failed", t.noContactPause)
                     return
                 afterNoContact := true
