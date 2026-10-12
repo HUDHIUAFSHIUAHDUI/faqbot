@@ -57,6 +57,7 @@ global SendGoneMs    := 500
 global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
                                 ; (on the tablet a good click takes ~2 s to go through;
                                 ; 1 s made it click Send twice every time)
+global VDropFindWait  := 3000   ; ms to look for the voicemail button before hanging up instead
 global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
 global VDropFailPauseMin := 2000, VDropFailPauseMax := 4000   ; drop failed: wait this long, then hang up
 global EmailStepWait := 8000    ; ms to wait for each email button
@@ -240,7 +241,8 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                 return
             if vd {
                 ; 3. Drop the voicemail. Worked: just No Contact. Failed: the red
-                ; box is closed, then hang up + No Contact.
+                ; box is closed, then hang up + No Contact. No voicemail button on
+                ; this lead: hang up + No Contact.
                 Status(n, "dropping the voicemail...")
                 r := VoiceDrop(vd)
                 Log(" call " n ": voicemail " r)
@@ -250,7 +252,7 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                     if !Pause(Random(VDropFailPauseMin, VDropFailPauseMax), "Hanging up in")
                         return Fail("")
                 }
-                if !HangUpAndNoContact(red, noc, r = "failed", t.noContactPause)
+                if !HangUpAndNoContact(red, noc, r != "dropped", t.noContactPause)
                     return
                 afterNoContact := true
                 continue
@@ -588,12 +590,17 @@ WaitPageChange(prev) {
 ; ---------- VOICEMAIL DROP ----------
 ; Click "Default" (the voicemail under the lead's phone numbers). A failed drop
 ; shows a red "The Voice Drop was not initiated" box with a Close button; a good
-; one doesn't. Returns "dropped", "failed" (box closed), or "" (stopped/not found).
+; one doesn't. Returns "dropped", "failed" (box closed), "missing" (no voicemail
+; button on this lead), or "" (stopped).
 VoiceDrop(vd) {
     d := vd["drop"], c := vd["close"]
     Log(" vdrop: looking")
-    if !WaitForSpot(d)
-        return Fail("voicemail 'Default' button")
+    if !WaitForSpot(d, false, AmbiguousCap, VDropFindWait) {
+        if Stopped()
+            return Fail("")
+        Log(" vdrop: no voicemail button on this lead - hanging up instead")
+        return "missing"
+    }
     Sleep Settle
     ClickAt(d[1], d[2], true)
     Log(" vdrop: clicked")

@@ -82,6 +82,14 @@ cNxt.OnEvent("Click", (*) => (SetC(cNxt, OFF), SetC(cSb, SB), SetTimer(() => Set
 cSnd.OnEvent("Click", SendClick)
 global cDrop  := g.Add("Text", "x20 y340 w40 h40 Background" Format("{:06X}", VDGRAY))
 global cClose := g.Add("Text", "x160 y340 w40 h40 Background" Format("{:06X}", OFF))
+if (Scenario = "vdmissing") {         ; leads 2+ have no voicemail button
+    NoVM() {
+        global CallNo
+        if (CallNo >= 2)
+            SetC(cDrop, OFF)
+    }
+    SetTimer NoVM, 100
+}
 DropClick(*) {
     if InStr(Scenario, "vdfail") {      ; red box (vdfail: the call is already over, like the video)
         Out("  [fake] voicemail drop FAILED (red box shown)")
