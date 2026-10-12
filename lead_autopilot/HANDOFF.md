@@ -57,7 +57,7 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 2. **Special lead** (no email envelope): stops and beeps; the call is his.
 3. **While it rings, do his Win email flow** (a copy of the main script's `DoRun`: Lead Scraper → Upload → close popup → envelope → NCCTeam → Next → scroll → Send). A failure stops the run.
 4. Let it ring **10–25 s** total, counted from when the red button appeared (he asked for 10–25). Every 10–15 dials one is long: 23–25 s. If the red button goes away first (declined), skip to No Contact.
-5. Hang up, wait 2–8 s (long dial 8–15 s; changed 10/12), click No Contact. The dialer calls the next lead. Repeat.
+5. Hang up, wait 2–6 s (long dial 7–12 s; changed 10/12), click No Contact. The dialer calls the next lead. Repeat.
 
 **Known trade-off (Brendan agreed):** it cannot see a pickup. Sound stays on; he must tap a key when someone answers, or it will hang up on them when the timer runs out. Voicemail also isn't detected.
 
