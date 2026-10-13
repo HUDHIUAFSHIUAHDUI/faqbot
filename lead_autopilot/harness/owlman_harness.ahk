@@ -201,6 +201,22 @@ if (Scenario = "nohang") {
     Out(FileRead(A_ScriptDir "\owlman_log.txt"))
     ExitApp
 }
+if (Scenario = "boxsetup") {            ; the box button: Owlman stops, then the one-number setup starts
+    IniWrite "40,360," VDGRAY "," VDGRAY, ini, "vdrop", "drop"
+    IniWrite "180,360," CLOSEC "," CLOSEC, ini, "vdrop", "close"
+    Sleep 500
+    SetTimer () => StartFakeCall("you tapped the blue phone"), -300
+    SetTimer () => (Out("  [test] box visible=" DllCall("IsWindowVisible", "ptr", Panel.Hwnd) " running=" Running ", clicking the setup button"), SetupFromBox()), -2500
+    TriggerRun(DoAutoDial)
+    Sleep 5000
+    Out("after button: running=" Running "  setup on=" DropSetupOn "  box visible=" DllCall("IsWindowVisible", "ptr", Panel.Hwnd))
+    SetC(cDrop1, VDGRAY)
+    MouseMove 40, 250
+    RecordDrop1()
+    Out("after Default click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
+    Out(FileRead(A_ScriptDir "\owlman_log.txt"))
+    ExitApp
+}
 if (Scenario = "d1setup") {             ; Ctrl+Alt+D setup: a white click is refused, a button click is saved
     Sleep 500
     SetC(cDrop1, VDGRAY), DropSetupOn := true
