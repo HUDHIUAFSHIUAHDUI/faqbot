@@ -71,6 +71,19 @@ global Abort := false, UserMoved := false, Running := false, RunStart := 0
 global UserStopped := false
 global CallStart := 0
 
+global OwlmanVersion := "Oct 13"
+
+; Close any other copy of Owlman that's still running (e.g. "owlman_dials (1).ahk"),
+; so an old version can't keep answering Right Alt.
+DetectHiddenWindows true
+for hwnd in WinGetList("ahk_class AutoHotkey") {
+    try {
+        if (hwnd != A_ScriptHwnd && InStr(WinGetTitle(hwnd), "owlman_dials"))
+            WinClose hwnd
+    }
+}
+DetectHiddenWindows false
+
 ; ---------- ON/OFF BOX ----------
 global Panel := Gui("+AlwaysOnTop +ToolWindow -MinimizeBox", "Owlman Dials")
 Panel.SetFont("s10 bold", "Segoe UI")
@@ -83,7 +96,7 @@ Panel.Show("Hide x10 y" (A_ScreenHeight - 230))    ; placed, but hidden while OF
 if (A_Args.Length && A_Args[1] = "on")   ; restarted as administrator while ON
     SetTimer () => TriggerRun(DoAutoDial), -300
 else
-    Flash("Owlman Dials is ready.`nTap Right Alt to turn it on.", 4000)
+    Flash("Owlman Dials is ready (" OwlmanVersion " version).`nTap Right Alt to turn it on.`nHold Right Alt 2 s = voicemail setup for one-number leads.", 6000)
 
 ; ---------- ON / OFF: RIGHT ALT ----------
 ; Right Alt is held back and re-sent, so a tap alone never opens a menu
@@ -91,17 +104,23 @@ else
 ; Whether Owlman was ON is decided when the key goes DOWN: pressing any key
 ; already stops a run, so by the time it comes up the run may be over, and that
 ; tap must mean OFF, not "start again".
-global AltHeld := false, AltDownBusy := false
+; HOLD Right Alt 2 s (Owlman OFF) = set up the one-number voicemail spot.
+global AltHeld := false, AltDownBusy := false, AltDownTick := 0
+global HoldForSetupMs := 2000
 *RAlt:: {
-    global AltHeld, AltDownBusy
+    global AltHeld, AltDownBusy, AltDownTick
     if !AltHeld {               ; first press, not the auto-repeat while held
         AltHeld := true
         AltDownBusy := Running
+        AltDownTick := A_TickCount
+        if !Running
+            SetTimer HoldHint, -HoldForSetupMs
     }
     Send "{Blind}{RAlt down}"
 }
 *RAlt Up:: {
     global AltHeld := false
+    SetTimer HoldHint, 0
     alone := (A_PriorKey = "RAlt")
     if alone
         Send "{Blind}{vkE8}"    ; tells Windows "Alt was used", so no menu opens
@@ -110,8 +129,15 @@ global AltHeld := false, AltDownBusy := false
         return
     if AltDownBusy
         OwlOff()
+    else if (A_TickCount - AltDownTick >= HoldForSetupMs)
+        StartDropSetup()
     else
         TriggerRun(DoAutoDial)
+}
+
+HoldHint() {
+    if AltHeld && !Running && A_PriorKey = "RAlt"
+        ToolTip "Let go of Right Alt to set up`nthe voicemail for ONE-number leads.", 10, 10
 }
 
 OwlOff() {
@@ -166,9 +192,11 @@ OwlmanError(e, *) {
 ; ---------- SETUP: the voicemail on a ONE-number lead ----------
 ; With one phone number the "Default" voicemail sits one row higher than on a
 ; two-number lead (the spot saved with Ctrl+Alt+V in lead_autopilot).
-; Ctrl+Alt+D, then click Default on a one-number lead. The click is not passed on.
+; Hold Right Alt 2 s (or Ctrl+Alt+D), then click Default on a one-number lead.
+; The click is not passed on.
 global DropSetupOn := false
-^!d:: {
+^!d::StartDropSetup()
+StartDropSetup() {
     global DropSetupOn
     if Running
         return
@@ -248,7 +276,7 @@ DoAutoDial() {
         if (one := LoadPts(OwnIni, "vdrop", ["drop1"]))
             vd["drop1"] := one["drop1"]
         else
-            Flash("Tip: one-number leads need their own voicemail spot.`nWith Owlman OFF, press Ctrl+Alt+D on a one-number lead and click Default.", 6000)
+            Flash("Tip: one-number leads need their own voicemail spot.`nWith Owlman OFF, HOLD Right Alt 2 s on a one-number lead, then click Default.", 6000)
     }
     if !vd
         Flash("Voicemail drop isn't set up yet (Ctrl+Alt+V in lead_autopilot).`nHanging up after the ring time instead.", 5000)
