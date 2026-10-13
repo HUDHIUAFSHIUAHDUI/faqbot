@@ -10,7 +10,6 @@ global Scenario := EnvGet("SCEN")
 global CallNo := 0
 try FileDelete A_ScriptDir "\lead_points.ini"
 try FileDelete A_ScriptDir "\owlman_log.txt"
-try FileDelete A_ScriptDir "\owlman_points.ini"
 ini := A_ScriptDir "\lead_points.ini"
 IniWrite "300,100," RED "," RED, ini, "hangup2", "hangup"
 IniWrite "100,300," NOC "," NOC, ini, "hangup2", "nocontact"
@@ -91,16 +90,13 @@ if (Scenario = "vdmissing") {         ; leads 2+ have no voicemail button
     }
     SetTimer NoVM, 100
 }
-; vd1num: odd calls = lead with TWO numbers, even calls = ONE number. Both
-; "Default" spots always look like the voicemail button (on the wrong layout
-; they're really the Home label / the Lead Status label), like the real page.
+; Phone icons sit in the envelope's column (x=100): the No Contact square
+; (y 280-320) stands in for the first phone, cPh2 is the second phone.
+; vd1num: odd calls = lead with TWO numbers, even calls = ONE number. The
+; voicemail spot always looks like the button (on a one-number lead it's really
+; the Lead Status label), like the real page.
 global TwoNums := true, PHBLUE := 0x2B6CC4
-global cPh2   := g.Add("Text", "x80 y235 w40 h30 Background" Format("{:06X}", (Scenario = "vd1num") ? PHBLUE : 0xFFFFFF))
-global cDrop1 := g.Add("Text", "x20 y230 w40 h40 Background" Format("{:06X}", (Scenario = "vd1num") ? VDGRAY : 0xFFFFFF))
-if (Scenario = "vd1num") {
-    IniWrite "40,250," VDGRAY "," VDGRAY, A_ScriptDir "\owlman_points.ini", "vdrop", "drop1"
-    cDrop1.OnEvent("Click", (*) => Out("  [fake] " (TwoNums ? "!!! clicked the HOME label (wrong spot)" : "voicemail DROPPED (one-number lead)")))
-}
+global cPh2   := g.Add("Text", "x80 y235 w40 h30 Background" Format("{:06X}", (InStr(Scenario, "vd") = 1) ? PHBLUE : 0xFFFFFF))
 SetLayout() {
     global TwoNums := Mod(CallNo, 2) = 1
     SetC(cPh2, TwoNums ? PHBLUE : 0xFFFFFF)
@@ -199,33 +195,6 @@ if (Scenario = "nohang") {
     Sleep 500
     Out("result: " HangUpAndNoContact([300,100,RED,RED], [100,300,NOC,NOC], true))
     Out(FileRead(A_ScriptDir "\owlman_log.txt"))
-    ExitApp
-}
-if (Scenario = "boxsetup") {            ; the box button: Owlman stops, then the one-number setup starts
-    IniWrite "40,360," VDGRAY "," VDGRAY, ini, "vdrop", "drop"
-    IniWrite "180,360," CLOSEC "," CLOSEC, ini, "vdrop", "close"
-    Sleep 500
-    SetTimer () => StartFakeCall("you tapped the blue phone"), -300
-    SetTimer () => (Out("  [test] box visible=" DllCall("IsWindowVisible", "ptr", Panel.Hwnd) " running=" Running ", clicking the setup button"), SetupFromBox()), -2500
-    TriggerRun(DoAutoDial)
-    Sleep 5000
-    Out("after button: running=" Running "  setup on=" DropSetupOn "  box visible=" DllCall("IsWindowVisible", "ptr", Panel.Hwnd))
-    SetC(cDrop1, VDGRAY)
-    MouseMove 40, 250
-    RecordDrop1()
-    Out("after Default click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
-    Out(FileRead(A_ScriptDir "\owlman_log.txt"))
-    ExitApp
-}
-if (Scenario = "d1setup") {             ; Ctrl+Alt+D setup: a white click is refused, a button click is saved
-    Sleep 500
-    SetC(cDrop1, VDGRAY), DropSetupOn := true
-    MouseMove 450, 150
-    RecordDrop1()
-    Out("after white click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
-    MouseMove 40, 250
-    RecordDrop1()
-    Out("after Default click: setup on=" DropSetupOn "  saved=" IniRead(A_ScriptDir "\owlman_points.ini", "vdrop", "drop1", "(none)"))
     ExitApp
 }
 if (Scenario = "toggle") {

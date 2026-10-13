@@ -64,7 +64,6 @@ global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
 global HoldScrollMs  := 700
 
-global OwnIni  := A_ScriptDir "\owlman_points.ini"   ; Owlman's own spot: the one-number voicemail
 global MainIni := A_ScriptDir "\lead_points.ini"        ; lead_autopilot's spots (read only)
 global LogFile := A_ScriptDir "\owlman_log.txt"
 global Abort := false, UserMoved := false, Running := false, RunStart := 0
@@ -176,49 +175,6 @@ OwlmanError(e, *) {
 ~Esc::OwlOff()
 #HotIf
 
-; ---------- SETUP: the voicemail on a ONE-number lead ----------
-; With one phone number the "Default" voicemail sits one row higher than on a
-; two-number lead (the spot saved with Ctrl+Alt+V in lead_autopilot).
-; Saved by double-clicking owlman_voicemail_setup.ahk (Ctrl+Alt+D also works, but
-; not on Brendan's tablet): click Default on a one-number lead. The click is not passed on.
-global DropSetupOn := false
-^!d::StartDropSetup()
-StartDropSetup() {
-    global DropSetupOn
-    if Running
-        return
-    DropSetupOn := true
-    ToolTip "OWLMAN SETUP: voicemail on a ONE-number lead`n`nOpen a lead that has only ONE phone number.`nThen click 'Default' (the voicemail right under that number).`nThis click won't drop a voicemail.`n`n(Esc = cancel)", 10, 10
-}
-#HotIf DropSetupOn
-LButton::RecordDrop1()
-Esc:: {
-    global DropSetupOn := false
-    ToolTip
-    Flash("Setup cancelled. Nothing was changed.")
-}
-#HotIf
-
-RecordDrop1() {
-    global DropSetupOn
-    MouseGetPos &x, &y
-    ToolTip
-    Sleep 250                   ; let the hover highlight finish fading in
-    c := PixelGetColor(x, y)
-    MouseMove 1, 1
-    Sleep 150
-    idle := PixelGetColor(x, y)
-    MouseMove x, y
-    if !Distinct(c) && !Distinct(idle) {
-        ToolTip "That spot is plain white or gray.`nClick right ON the voicemail icon or the word 'Default'.`n`n(Esc = cancel)", 10, 10
-        return
-    }
-    IniWrite x "," y "," c "," idle, OwnIni, "vdrop", "drop1"
-    Log("SETUP one-number voicemail at " x "," y " hover=" c " idle=" idle)
-    DropSetupOn := false
-    SoundBeep 1200, 60
-    Flash("Saved! One-number leads will use this voicemail spot.", 4000)
-}
 
 TriggerRun(fn) {
     if !Running
@@ -259,12 +215,6 @@ DoAutoDial() {
         return Flash("Owlman Dials needs your lead_autopilot setups first`n(Win and Caps Lock). Put owlman_dials in the same`nfolder as lead_autopilot (Downloads).", 6000)
     red := hang["hangup"], noc := hang["nocontact"], env := mail["email"]
     vd := LoadPts(MainIni, "vdrop", ["drop", "close"])   ; 0 = not set up: hang up instead
-    if vd {
-        if (one := LoadPts(OwnIni, "vdrop", ["drop1"]))
-            vd["drop1"] := one["drop1"]
-        else
-            Flash("Tip: one-number leads need their own voicemail spot.`nDouble-click owlman_voicemail_setup.ahk in Downloads.", 6000)
-    }
     if !vd
         Flash("Voicemail drop isn't set up yet (Ctrl+Alt+V in lead_autopilot).`nHanging up after the ring time instead.", 5000)
     if (hw := WinExist("VS Connect"))
@@ -658,9 +608,11 @@ WaitPageChange(prev) {
 ; button on this lead), or "" (stopped).
 VoiceDrop(vd, env := 0) {
     d := vd["drop"], c := vd["close"]
-    if (env && vd.Has("drop1") && !TwoNumbers(env, vd["drop1"])) {
-        d := vd["drop1"]        ; one phone number: the voicemail sits a row higher
-        Log(" vdrop: one-number lead")
+    if (env && !TwoNumbers(env, d)) {
+        ; One phone number: the voicemail sits a row higher, and the saved spot
+        ; lands on "Lead Status" (same gray). Don't look - hang up instead.
+        Log(" vdrop: only one phone number - no voicemail, hanging up instead")
+        return "missing"
     }
     Log(" vdrop: looking")
     if !WaitForSpot(d, false, AmbiguousCap, VDropFindWait) {
@@ -694,16 +646,22 @@ VoiceDrop(vd, env := 0) {
     return "dropped"
 }
 
-; Two phone numbers? Then the second phone icon sits (in the envelope's column)
-; where a one-number lead has its voicemail row; on a one-number lead it's blank.
-TwoNumbers(env, d1) {
-    Loop 9 {
-        c := PixelGetColor(env[1], d1[2] - 16 + (A_Index - 1) * 4)
+; Two phone numbers? Count the colored (blue/green) icons in the envelope's
+; column, from the envelope down to the voicemail spot: envelope + 2 phones = 3.
+TwoNumbers(env, d) {
+    icons := 0, inIcon := false
+    y := env[2]
+    while (y <= d[2]) {
+        c := PixelGetColor(env[1], y)
         r := (c >> 16) & 0xFF, g := (c >> 8) & 0xFF, b := c & 0xFF
-        if (Max(r, g, b) - Min(r, g, b) >= 60)  ; a colored (blue/green) phone icon
-            return true
+        colored := Max(r, g, b) - Min(r, g, b) >= 60
+        if (colored && !inIcon)
+            icons += 1
+        inIcon := colored
+        y += 3
     }
-    return false
+    Log("  " icons " icons (envelope + phones) above the voicemail spot")
+    return icons >= 3
 }
 
 StaysVisible(p, ms) {
