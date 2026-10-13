@@ -97,6 +97,12 @@ if (Scenario = "vdmissing") {         ; leads 2+ have no voicemail button
 ; the Lead Status label), like the real page.
 global TwoNums := true, PHBLUE := 0x2B6CC4
 global cPh2   := g.Add("Text", "x80 y235 w40 h30 Background" Format("{:06X}", (InStr(Scenario, "vd") = 1) ? PHBLUE : 0xFFFFFF))
+; Like the real icons: a white symbol in the middle of each colored icon
+; (kept off the saved click spots), so a scan straight down the middle sees
+; colored / white / colored inside ONE icon.
+if (InStr(Scenario, "vd") = 1)
+    for gy in [186, 241, 284]
+        g.Add("Text", "x95 y" gy " w10 h8 BackgroundFFFFFF")
 SetLayout() {
     global TwoNums := Mod(CallNo, 2) = 1
     SetC(cPh2, TwoNums ? PHBLUE : 0xFFFFFF)

@@ -648,20 +648,57 @@ VoiceDrop(vd, env := 0) {
 
 ; Two phone numbers? Count the colored (blue/green) icons in the envelope's
 ; column, from the envelope down to the voicemail spot: envelope + 2 phones = 3.
+; Each icon is a colored circle with a WHITE symbol in the middle, so a row
+; counts as "icon" if ANY pixel across the icon's width is colored - one line
+; straight down the middle would see the symbol split one icon into two.
 TwoNumbers(env, d) {
-    icons := 0, inIcon := false
-    y := env[2]
-    while (y <= d[2]) {
-        c := PixelGetColor(env[1], y)
-        r := (c >> 16) & 0xFF, g := (c >> 8) & 0xFF, b := c & 0xFF
-        colored := Max(r, g, b) - Min(r, g, b) >= 60
-        if (colored && !inIcon)
-            icons += 1
-        inIcon := colored
-        y += 3
+    half := 14, x0 := env[1] - half, w := 2 * half + 1
+    y0 := env[2], h := d[2] - env[2] + 1
+    if (h < 2)
+        return true                 ; odd setup: don't second-guess, just look
+    shot := GrabScreen(x0, y0, w, h)
+    icons := 0, inIcon := false, gapRows := 0
+    Loop h {
+        row := A_Index - 1, colored := false
+        Loop w // 2 + 1 {           ; every other column is plenty
+            c := NumGet(shot, (row * w + (A_Index - 1) * 2) * 4, "uint")
+            r := (c >> 16) & 0xFF, g := (c >> 8) & 0xFF, b := c & 0xFF
+            if (Max(r, g, b) - Min(r, g, b) >= 60) {
+                colored := true
+                break
+            }
+        }
+        if colored {
+            if !inIcon && (icons = 0 || gapRows >= 4)
+                icons += 1          ; a new icon (a 1-3 row break is the same icon)
+            inIcon := true, gapRows := 0
+        } else {
+            gapRows += 1
+            if (gapRows >= 4)
+                inIcon := false
+        }
     }
     Log("  " icons " icons (envelope + phones) above the voicemail spot")
     return icons >= 3
+}
+
+; Copy a rectangle of the screen into memory in one go (fast), as 0xRRGGBB pixels.
+GrabScreen(x, y, w, h) {
+    sdc := DllCall("GetDC", "ptr", 0, "ptr")
+    mdc := DllCall("CreateCompatibleDC", "ptr", sdc, "ptr")
+    bi := Buffer(40, 0)
+    NumPut("uint", 40, bi, 0), NumPut("int", w, bi, 4), NumPut("int", -h, bi, 8)   ; top-down rows
+    NumPut("ushort", 1, bi, 12), NumPut("ushort", 32, bi, 14)
+    hbm := DllCall("CreateDIBSection", "ptr", mdc, "ptr", bi, "uint", 0, "ptr*", &bits := 0, "ptr", 0, "uint", 0, "ptr")
+    obm := DllCall("SelectObject", "ptr", mdc, "ptr", hbm, "ptr")
+    DllCall("BitBlt", "ptr", mdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", sdc, "int", x, "int", y, "uint", 0x00CC0020)
+    shot := Buffer(w * h * 4)
+    DllCall("RtlMoveMemory", "ptr", shot, "ptr", bits, "uptr", w * h * 4)
+    DllCall("SelectObject", "ptr", mdc, "ptr", obm)
+    DllCall("DeleteObject", "ptr", hbm)
+    DllCall("DeleteDC", "ptr", mdc)
+    DllCall("ReleaseDC", "ptr", 0, "ptr", sdc)
+    return shot
 }
 
 StaysVisible(p, ms) {
