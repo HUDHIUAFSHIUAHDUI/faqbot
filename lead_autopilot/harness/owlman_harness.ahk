@@ -43,6 +43,10 @@ ExtClick(*) {
     if (Scenario = "popupmiss" && ExtClicks = 1)
         return Out("  [fake] Lead Scraper icon click did nothing")
     global PopupOpen := !PopupOpen
+    if (PopupOpen && Scenario = "slowupload") {     ; button shows, but only works 0.4 s later
+        global UplReady := false
+        SetTimer () => (UplReady := true), -400
+    }
     SetC(cUpl, PopupOpen ? UPL : OFF), Out("  [fake] Lead Scraper popup " (PopupOpen ? "open" : "closed"))
 }
 SendClick(*) {
@@ -57,7 +61,8 @@ SendDone() {
     SetC(cSnd, OFF), SetC(cSb, OFF), Out("  [fake] EMAIL SENT (" Emails ")")
 }
 cExt.OnEvent("Click", ExtClick)
-cUpl.OnEvent("Click", (*) => Out("  [fake] lead uploaded"))
+global UplReady := true
+cUpl.OnEvent("Click", (*) => Out("  [fake] " (UplReady ? "lead uploaded" : "!!! Upload clicked too early - IGNORED")))
 global TmplReady := false
 EnvClick(*) {
     global TmplReady := false

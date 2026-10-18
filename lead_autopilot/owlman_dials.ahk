@@ -54,6 +54,7 @@ global AmbiguousCap  := 800
 global TemplateWait   := 3000   ; template / Next: max wait for their page to show up
 global TemplateSettle := 600    ; ...then this pause so the list finishes loading
 global UploadWait    := 1200    ; the email flow's timings, same as lead_autopilot's
+global UploadSettle  := 500    ; Upload showed up: wait this long so the popup is ready for the click
 global SendGoneMs    := 500
 global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
                                 ; (on the tablet a good click takes ~2 s to go through;
@@ -473,6 +474,11 @@ SendEmail(pts) {
         }
         if !WaitForSpot(p, ambiguous, AmbiguousCap, EmailStepWait)
             return Fail(EmailNames[key])
+        if (key = "upload") {       ; the popup draws Upload before it's ready: let it settle
+            StaysVisible(p, 300)
+            if !WaitMs(UploadSettle)
+                return Fail("")
+        }
         Sleep Settle
         ; If the next button's spot ALREADY looks ready before we click, don't
         ; trust it until the page has changed (same as lead_autopilot).
@@ -480,8 +486,17 @@ SendEmail(pts) {
         Click p[1], p[2]
         Log(" " key ": clicked")
         if (key = "upload") {
-            if !WaitMs(UploadWait)
-                return Fail("")
+            ; let the upload finish; note whether the button reacted (for the log)
+            start := A_TickCount, changed := 0
+            while (A_TickCount - start < UploadWait) {
+                if Stopped()
+                    return Fail("")
+                if (!changed && !SpotVisible(p))
+                    changed := A_TickCount - start
+                Sleep 10
+            }
+            Log(changed ? " upload: button reacted " changed "ms after the click"
+                : " upload: button looked the same after the click (saw " SeenAt(p) ")")
             if !ClosePopup(pts)
                 return Fail("a way to close the Lead Scraper popup")
         }
