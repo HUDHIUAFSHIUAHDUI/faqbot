@@ -45,7 +45,9 @@ global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
 global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
 global HangupSkipMs  := 3000    ; red hang-up button not found in this long = call's already over
-global ReloadWait    := 3000    ; ms max to wait for the page to reload after hanging up
+global ReloadWait    := 800     ; ms max to wait for a page reload before clicking No Contact
+                                ; (the log showed it never visibly reloads: 3 s here was pure waiting)
+global CallSettle    := 1000    ; call going after No Contact: ms max to wait for the new lead's page
 global Settle        := 40      ; ms pause after a button appears, before clicking
 global Timeout       := 5000    ; ms to wait for a button before giving up
 global ColorTolerance := 40
@@ -60,7 +62,7 @@ global SendStuckMs   := 4000    ; Send still showing this long after a click = c
                                 ; (on the tablet a good click takes ~2 s to go through;
                                 ; 1 s made it click Send twice every time)
 global VDropFindWait  := 1500   ; ms to look for the voicemail button before hanging up instead
-global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
+global VDropFailWait  := 2000   ; ms to watch for the red "Voice Drop was not initiated" box
 global VDropFailPauseMin := 1000, VDropFailPauseMax := 3000   ; drop failed: wait this long, then hang up
 global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
@@ -236,8 +238,12 @@ DoAutoDial() {
 AutoDialLoop(red, noc, env, mail, vd := 0) {
     n := 0
     afterNoContact := false
+    leadStart := A_TickCount
     Loop {
         n += 1
+        if (n > 1)
+            Log(" lead " (n - 1) " took " Round((A_TickCount - leadStart) / 1000, 1) " s")
+        leadStart := A_TickCount
         t := PickTiming()
         Log(" call " n (t.long ? " (LONG dial)" : "") ": ring " t.ring "ms, wait before No Contact " t.noContactPause "ms")
         ; 1. Your dialer does the calling - Owlman never clicks a phone.
@@ -350,7 +356,7 @@ WaitForCall(red, env, afterNoContact) {
         if CallStart {
             if !SpotVisible(red) && StaysGone(red, 300)
                 return "ended"          ; declined / busy already
-            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - CallStart > ReloadWait)
+            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - CallStart > CallSettle)
                 return "call"
         } else if (A_TickCount - start > NextCallWait) {
             Log("  no call after " NextCallWait "ms: saw " SeenAt(red) " at the hang-up spot")

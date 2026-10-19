@@ -77,6 +77,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 
 **Upload not clicked (10/18, both files):** the run went on but the lead was never uploaded: the popup draws the Upload button before it accepts clicks, and the scripts clicked it 40 ms after it appeared. Now: Upload must stay showing 300 ms, then `UploadSettle` 500 ms, then click. After the click the log says "upload: button reacted Xms after the click" or "looked the same after the click" (diagnostic only, it never clicks Upload twice). Harness `slowupload` reproduces it (old code: IGNORED every time).
 
+**Speed (10/19):** his first log showed No Contact "found after 3015ms" every lead and "call" ~3 s after "call going": both were 3 s waits for a page reload that never visibly happens. Owlman now: `ReloadWait` 800 ms (before No Contact), `CallSettle` 1 s (new lead's page after the call starts), `VDropFailWait` 2 s. Each lead logs "lead N took X s". The dialer itself takes ~8 s to start each call (out of our hands). The main script's Caps Lock still uses its own 3 s `ReloadWait` (unchanged).
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.
