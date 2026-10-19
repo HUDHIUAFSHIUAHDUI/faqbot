@@ -81,6 +81,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 
 **10 s per contact (10/19):** his system requires at least 10 s on each contact. `MinContactMs` 10.5 s: No Contact is never clicked sooner than that after the call started (Owlman waits the rest and logs "waiting Xms more (10 s minimum per contact)"). The log line "nocontact: clicked (X s after the call started)" shows it per lead.
 
+**Fixed waits made random (10/19, Owlman only):** Upload held 0.2 s + 0.3–0.8 s before the click; 0.9–1.4 s after it before closing the popup; template page settle 0.4–0.8 s; new lead's page settle 0.5–1 s; red-box watch 1.5–2 s. Each picks a new value every lead. Saves ~0.6 s per lead on average.
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.

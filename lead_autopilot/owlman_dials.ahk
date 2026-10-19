@@ -49,22 +49,22 @@ global EnvelopeWait  := 1500    ; ms to wait for the email button before calling
 global HangupSkipMs  := 3000    ; red hang-up button not found in this long = call's already over
 global ReloadWait    := 800     ; ms max to wait for a page reload before clicking No Contact
                                 ; (the log showed it never visibly reloads: 3 s here was pure waiting)
-global CallSettle    := 1000    ; call going after No Contact: ms max to wait for the new lead's page
+global CallSettleMin := 500, CallSettleMax := 1000   ; call going after No Contact: max wait for the new lead's page
 global Settle        := 40      ; ms pause after a button appears, before clicking
 global Timeout       := 5000    ; ms to wait for a button before giving up
 global ColorTolerance := 40
 global SpotSlack     := 4
 global AmbiguousCap  := 800
 global TemplateWait   := 3000   ; template / Next: max wait for their page to show up
-global TemplateSettle := 600    ; ...then this pause so the list finishes loading
-global UploadWait    := 1200    ; the email flow's timings, same as lead_autopilot's
-global UploadSettle  := 500    ; Upload showed up: wait this long so the popup is ready for the click
+global TemplateSettleMin := 400, TemplateSettleMax := 800   ; ...then this pause so the list finishes loading
+global UploadWaitMin := 900, UploadWaitMax := 1400   ; after clicking Upload, before closing the popup
+global UploadSettleMin := 300, UploadSettleMax := 800   ; Upload showed up (and held 0.2 s): wait this long before the click
 global SendGoneMs    := 500
 global SendStuckMs   := 4000    ; Send still showing this long after a click = click again
                                 ; (on the tablet a good click takes ~2 s to go through;
                                 ; 1 s made it click Send twice every time)
 global VDropFindWait  := 1500   ; ms to look for the voicemail button before hanging up instead
-global VDropFailWait  := 2000   ; ms to watch for the red "Voice Drop was not initiated" box
+global VDropFailWaitMin := 1500, VDropFailWaitMax := 2000   ; ms to watch for the red "Voice Drop was not initiated" box
 global VDropFailPauseMin := 1000, VDropFailPauseMax := 3000   ; drop failed: wait this long, then hang up
 global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
@@ -354,6 +354,7 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
 WaitForCall(red, env, afterNoContact) {
     global CallStart := 0
     start := A_TickCount, envGone := false
+    callSettle := Random(CallSettleMin, CallSettleMax)
     Loop {
         if Stopped()
             return ""
@@ -366,7 +367,7 @@ WaitForCall(red, env, afterNoContact) {
         if CallStart {
             if !SpotVisible(red) && StaysGone(red, 300)
                 return "ended"          ; declined / busy already
-            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - CallStart > CallSettle)
+            if (!afterNoContact || (envGone && SpotVisible(env)) || A_TickCount - CallStart > callSettle)
                 return "call"
         } else if (A_TickCount - start > NextCallWait) {
             Log("  no call after " NextCallWait "ms: saw " SeenAt(red) " at the hang-up spot")
@@ -491,8 +492,8 @@ SendEmail(pts) {
         if !WaitForSpot(p, ambiguous, AmbiguousCap, EmailStepWait)
             return Fail(EmailNames[key])
         if (key = "upload") {       ; the popup draws Upload before it's ready: let it settle
-            StaysVisible(p, 300)
-            if !WaitMs(UploadSettle)
+            StaysVisible(p, 200)
+            if !WaitMs(Random(UploadSettleMin, UploadSettleMax))
                 return Fail("")
         }
         Sleep Settle
@@ -503,8 +504,8 @@ SendEmail(pts) {
         Log(" " key ": clicked")
         if (key = "upload") {
             ; let the upload finish; note whether the button reacted (for the log)
-            start := A_TickCount, changed := 0
-            while (A_TickCount - start < UploadWait) {
+            start := A_TickCount, changed := 0, uploadWait := Random(UploadWaitMin, UploadWaitMax)
+            while (A_TickCount - start < uploadWait) {
                 if Stopped()
                     return Fail("")
                 if (!changed && !SpotVisible(p))
@@ -626,7 +627,7 @@ WaitPageChange(prev) {
             }
             if !back {
                 Log("  page changed after " (A_TickCount - start) "ms")
-                return WaitMs(TemplateSettle)
+                return WaitMs(Random(TemplateSettleMin, TemplateSettleMax))
             }
         }
         Sleep 10
@@ -659,7 +660,8 @@ VoiceDrop(vd, env := 0) {
     ClickAt(d[1], d[2], true)
     Log(" vdrop: clicked")
     start := A_TickCount
-    while (A_TickCount - start < VDropFailWait) {
+    failWait := Random(VDropFailWaitMin, VDropFailWaitMax)
+    while (A_TickCount - start < failWait) {
         if Stopped()
             return Fail("")
         if StaysVisible(c, 150) {
