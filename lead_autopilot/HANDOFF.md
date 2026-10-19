@@ -57,7 +57,7 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 2. **Special lead** (no email envelope): stops and beeps; the call is his.
 3. **While it rings, do his Win email flow** (a copy of the main script's `DoRun`: Lead Scraper → Upload → close popup → envelope → NCCTeam → Next → scroll → Send). A failure stops the run.
 4. Let it ring **10–25 s** total, counted from when the red button appeared (he asked for 10–25). Every 10–15 dials one is long: 23–25 s. If the red button goes away first (declined), skip to No Contact.
-5. Hang up, wait 1–3 s (long dial 6–11 s; changed 10/19). With the voicemail drop: email, then a fixed 5 s (`VoicemailWait`), then the voicemail/hang-up step, click No Contact. The dialer calls the next lead. Repeat.
+5. Hang up, wait 1–3 s (long dial 6–11 s; changed 10/19). With the voicemail drop: email, then 1–3 s random (`VoicemailWaitMin/Max`, was a fixed 5 s), then the voicemail/hang-up step, click No Contact. The dialer calls the next lead. Repeat.
 
 **Known trade-off (Brendan agreed):** it cannot see a pickup. Sound stays on; he must tap a key when someone answers, or it will hang up on them when the timer runs out. Voicemail also isn't detected.
 
@@ -78,6 +78,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 **Upload not clicked (10/18, both files):** the run went on but the lead was never uploaded: the popup draws the Upload button before it accepts clicks, and the scripts clicked it 40 ms after it appeared. Now: Upload must stay showing 300 ms, then `UploadSettle` 500 ms, then click. After the click the log says "upload: button reacted Xms after the click" or "looked the same after the click" (diagnostic only, it never clicks Upload twice). Harness `slowupload` reproduces it (old code: IGNORED every time).
 
 **Speed (10/19):** his first log showed No Contact "found after 3015ms" every lead and "call" ~3 s after "call going": both were 3 s waits for a page reload that never visibly happens. Owlman now: `ReloadWait` 800 ms (before No Contact), `CallSettle` 1 s (new lead's page after the call starts), `VDropFailWait` 2 s. Each lead logs "lead N took X s". The dialer itself takes ~8 s to start each call (out of our hands). The main script's Caps Lock still uses its own 3 s `ReloadWait` (unchanged).
+
+**10 s per contact (10/19):** his system requires at least 10 s on each contact. `MinContactMs` 10.5 s: No Contact is never clicked sooner than that after the call started (Owlman waits the rest and logs "waiting Xms more (10 s minimum per contact)"). The log line "nocontact: clicked (X s after the call started)" shows it per lead.
 
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:

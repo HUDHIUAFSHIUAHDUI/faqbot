@@ -39,7 +39,9 @@ global RingMin := 10000, RingMax := 25000         ; let it ring this long, then 
 global PauseMin := 1000, PauseMax := 3000         ; wait before No Contact
 global LongRingMin := 23000, LongRingMax := 25000 ; the same, on a long dial
 global LongPauseMin := 6000, LongPauseMax := 11000
-global VoicemailWait := 5000      ; after the email, wait this long before the voicemail / hang-up
+global VoicemailWaitMin := 1000, VoicemailWaitMax := 3000   ; after the email, before the voicemail / hang-up
+global MinContactMs := 10500    ; never No Contact sooner than this after the call started
+                                ; (his system needs 10 s on each contact; 0.5 s to spare)
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
@@ -265,7 +267,7 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                 ; 3. Drop the voicemail. Worked: just No Contact. Failed: the red
                 ; box is closed, then hang up + No Contact. No voicemail button on
                 ; this lead: hang up + No Contact.
-                if !Pause(VoicemailWait, "Voicemail in")
+                if !Pause(Random(VoicemailWaitMin, VoicemailWaitMax), "Voicemail in")
                     return Fail("")
                 Status(n, "dropping the voicemail...")
                 r := VoiceDrop(vd, env)
@@ -330,9 +332,17 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
         if !SpotVisible(noc) && !WaitForSpot(noc)   ; make sure it's still there after the wait
             return Fail("No Contact button")
     }
+    ; 10 seconds minimum on every contact, counted from when the call started
+    if (CallStart && (left := MinContactMs - (A_TickCount - CallStart)) > 0) {
+        Log(" nocontact: waiting " left "ms more (10 s minimum per contact)")
+        if !Pause(left, "No Contact in")
+            return Fail("")
+        if !SpotVisible(noc) && !WaitForSpot(noc)
+            return Fail("No Contact button")
+    }
     Sleep Settle
     ClickAt(noc[1], noc[2], true)
-    Log(" nocontact: clicked")
+    Log(" nocontact: clicked" (CallStart ? " (" Round((A_TickCount - CallStart) / 1000, 1) " s after the call started)" : ""))
     return true
 }
 
