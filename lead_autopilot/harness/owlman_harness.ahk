@@ -187,7 +187,7 @@ if (Scenario = "timing") {
         t := PickTiming()
         if t.long {
             longs.Push(A_Index)
-            if (t.ring < 23000 || t.ring > 25000 || t.noContactPause < 7000 || t.noContactPause > 12000)
+            if (t.ring < 23000 || t.ring > 25000 || t.noContactPause < 6000 || t.noContactPause > 11000)
                 Out("BAD long timing on dial " A_Index)
         } else {
             rMin := Min(rMin, t.ring), rMax := Max(rMax, t.ring)

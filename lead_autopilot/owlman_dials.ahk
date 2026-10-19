@@ -36,9 +36,9 @@ try DllCall("SetThreadDpiAwarenessContext", "ptr", -4, "ptr")
 ; Timing changes a little every call (random within these ranges, in ms), and
 ; every 10-15 dials one call is a "long" one where everything takes longer.
 global RingMin := 10000, RingMax := 25000         ; let it ring this long, then hang up
-global PauseMin := 1000, PauseMax := 5000         ; wait before No Contact
+global PauseMin := 1000, PauseMax := 3000         ; wait before No Contact
 global LongRingMin := 23000, LongRingMax := 25000 ; the same, on a long dial
-global LongPauseMin := 7000, LongPauseMax := 12000
+global LongPauseMin := 6000, LongPauseMax := 11000
 global VoicemailWait := 5000      ; after the email, wait this long before the voicemail / hang-up
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
@@ -61,7 +61,7 @@ global SendStuckMs   := 4000    ; Send still showing this long after a click = c
                                 ; 1 s made it click Send twice every time)
 global VDropFindWait  := 1500   ; ms to look for the voicemail button before hanging up instead
 global VDropFailWait  := 3000   ; ms to watch for the red "Voice Drop was not initiated" box
-global VDropFailPauseMin := 2000, VDropFailPauseMax := 4000   ; drop failed: wait this long, then hang up
+global VDropFailPauseMin := 1000, VDropFailPauseMax := 3000   ; drop failed: wait this long, then hang up
 global EmailStepWait := 8000    ; ms to wait for each email button
 global NoContactWait := 15000   ; No Contact can stay grayed out for a while after hanging up
 global HoldScrollMs  := 700

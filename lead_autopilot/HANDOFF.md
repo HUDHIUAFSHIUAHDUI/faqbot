@@ -57,7 +57,7 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 2. **Special lead** (no email envelope): stops and beeps; the call is his.
 3. **While it rings, do his Win email flow** (a copy of the main script's `DoRun`: Lead Scraper → Upload → close popup → envelope → NCCTeam → Next → scroll → Send). A failure stops the run.
 4. Let it ring **10–25 s** total, counted from when the red button appeared (he asked for 10–25). Every 10–15 dials one is long: 23–25 s. If the red button goes away first (declined), skip to No Contact.
-5. Hang up, wait 1–5 s (long dial 7–12 s; changed 10/13). With the voicemail drop: email, then a fixed 5 s (`VoicemailWait`), then the voicemail/hang-up step, click No Contact. The dialer calls the next lead. Repeat.
+5. Hang up, wait 1–3 s (long dial 6–11 s; changed 10/19). With the voicemail drop: email, then a fixed 5 s (`VoicemailWait`), then the voicemail/hang-up step, click No Contact. The dialer calls the next lead. Repeat.
 
 **Known trade-off (Brendan agreed):** it cannot see a pickup. Sound stays on; he must tap a key when someone answers, or it will hang up on them when the timer runs out. Voicemail also isn't detected.
 
@@ -69,7 +69,7 @@ Brendan asked for it simple: **it is just his Win + Caps Lock, done automaticall
 Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon, under the lead's phone numbers. Clicking it shows a green "Your Voice Drop was initiated". If it fails (seen: error `VSErrorNoActiveChannel` when the call had already ended), a red **"The Voice Drop was not initiated"** box with a **Close** button appears.
 - **Setup:** `Ctrl+Alt+V` (or tray "Run Setup (voicemail drop)") in lead_autopilot, **with no call going**: click Default (it fails on purpose), then click Close on the red box. Saved as `[vdrop] drop=`, `close=` in `lead_points.ini`.
 - **Caps Lock** (main), once set up: voicemail drop, then No Contact. Failed: Close, hang up (no wait; the 2–4 s wait is Owlman only, his choice) (if the red button is still there within 1.5 s), No Contact. Not set up: the old hang up + No Contact.
-- **Owlman**, once set up: email, then **right after the email** the voicemail drop (no ring timer), then No Contact (no hang-up, as he asked). Failed: Close, wait 2–4 s, hang up, No Contact. No voicemail button on the lead (not found in `VDropFindWait` 3 s): hang up, No Contact (Owlman only; harness `vdmissing`). Not set up: the old ring timer + hang-up.
+- **Owlman**, once set up: email, then **right after the email** the voicemail drop (no ring timer), then No Contact (no hang-up, as he asked). Failed: Close, wait 1–3 s (was 2–4 s), hang up, No Contact. No voicemail button on the lead (not found in `VDropFindWait` 3 s): hang up, No Contact (Owlman only; harness `vdmissing`). Not set up: the old ring timer + hang-up.
 - Success = no red box within `VDropFailWait` (3 s), so a good drop costs ~3 s of watching. Tune from the logs.
 - Tests: Owlman harness `vdok`, `vdfail`, `vdfailup`; `harness/main_harness.ahk` (`SCEN=ok|fail|failup|nosetup`) runs the main script's Caps Lock on a fake screen.
 
