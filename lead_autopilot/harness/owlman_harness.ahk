@@ -116,6 +116,10 @@ SetLayout() {
 DropClick(*) {
     if (Scenario = "vd1num")
         return Out("  [fake] " (TwoNums ? "voicemail DROPPED (two-number lead)" : "!!! clicked LEAD STATUS (wrong spot)"))
+    if (Scenario = "vdlate") {          ; the red box shows up late (2.5 s), call still up
+        Out("  [fake] voicemail drop FAILED (red box comes 2.5 s later)")
+        return SetTimer(() => SetC(cClose, CLOSEC), -2500)
+    }
     if InStr(Scenario, "vdfail") {      ; red box (vdfail: the call is already over, like the video)
         Out("  [fake] voicemail drop FAILED (red box shown)")
         (Scenario = "vdfail") ? SetC(cRed, OFF) : 0
@@ -155,6 +159,10 @@ Reload_() {      ; page reloads: the page buttons blink off for a moment
 }
 NocClick(*) {
     global Abort
+    if (InStr(Scenario, "vd") = 1 && PixelGetColor(180, 360) = CLOSEC)
+        return Out("  [fake] !!! No Contact clicked while the red box is open - BLOCKED")
+    if (Scenario = "vdlate" && PixelGetColor(300, 100) = RED)
+        Out("  [fake] !!! No Contact clicked with the call still up")
     Out("  [fake] No Contact clicked -> next lead at " A_TickCount)
     Reload_()
     if (Scenario = "special" && CallNo = 1)        ; lead 2 is a special lead: no email button

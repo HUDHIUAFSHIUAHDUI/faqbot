@@ -274,11 +274,24 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                 Log(" call " n ": voicemail " r)
                 if (r = "")
                     return
+                if (r = "dropped") {
+                    ; the red box can show up late: watch for it during the wait before No Contact
+                    r := WatchLateFail(vd["close"], t.noContactPause)
+                    if (r = "")
+                        return Fail("")
+                    if (r = "dropped") {
+                        if !HangUpAndNoContact(red, noc, false, 0, vd["close"])   ; wait already spent
+                            return
+                        afterNoContact := true
+                        continue
+                    }
+                    Log(" call " n ": voicemail failed (late)")
+                }
                 if (r = "failed") {      ; wait a moment before hanging up
                     if !Pause(Random(VDropFailPauseMin, VDropFailPauseMax), "Hanging up in")
                         return Fail("")
                 }
-                if !HangUpAndNoContact(red, noc, r != "dropped", t.noContactPause)
+                if !HangUpAndNoContact(red, noc, r != "dropped", t.noContactPause, vd["close"])
                     return
                 afterNoContact := true
                 continue
@@ -297,7 +310,7 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
 }
 
 ; Hang up (if asked and the red button is there within HangupSkipMs), then No Contact.
-HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
+HangUpAndNoContact(red, noc, hangUp, pauseMs := 0, box := 0) {
     waitReload := true          ; the page reloads after a call ends
     if hangUp {
         Log(" hangup: looking")
@@ -338,6 +351,24 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0) {
         if !Pause(left, "No Contact in")
             return Fail("")
         if !SpotVisible(noc) && !WaitForSpot(noc)
+            return Fail("No Contact button")
+    }
+    if (box && SpotVisible(box)) {      ; the voicemail failed after all (box blocks No Contact)
+        Log(" nocontact: red voicemail box is open - closing it, then hanging up")
+        CloseRedBox(box)
+        if !Pause(Random(VDropFailPauseMin, VDropFailPauseMax), "Hanging up in")
+            return Fail("")
+        if SpotVisible(red) {
+            ClickAt(red[1], red[2], true)
+            Log(" hangup: clicked")
+            Loop 3 {
+                if WaitGone(red, 700)
+                    break
+                Log(" hangup: still showing, clicking again")
+                ClickAt(red[1], red[2], true)
+            }
+        }
+        if !WaitForSpot(noc, true, ReloadWait, NoContactWait)
             return Fail("No Contact button")
     }
     Sleep Settle
@@ -666,19 +697,44 @@ VoiceDrop(vd, env := 0) {
             return Fail("")
         if StaysVisible(c, 150) {
             Log(" vdrop: FAILED (red box) - closing it")
-            Sleep Settle
-            ClickAt(c[1], c[2], true)
-            Loop 3 {
-                if WaitGone(c, 700)
-                    break
-                Log(" vdrop: box still open, clicking Close again")
-                ClickAt(c[1], c[2], true)
-            }
+            CloseRedBox(c)
             return "failed"
         }
         Sleep 20
     }
     Log(" vdrop: went through")
+    return "dropped"
+}
+
+CloseRedBox(c) {
+    Sleep Settle
+    ClickAt(c[1], c[2], true)
+    Loop 3 {
+        if WaitGone(c, 700)
+            break
+        Log(" vdrop: box still open, clicking Close again")
+        ClickAt(c[1], c[2], true)
+    }
+}
+
+; The drop looked fine, but the red box can still show up late. Spend the wait
+; before No Contact watching for it. Returns "dropped", "failed" (box showed up
+; and was closed), or "" (stopped).
+WatchLateFail(c, ms) {
+    start := A_TickCount, lastSec := -1
+    while (A_TickCount - start < ms) {
+        if Stopped()
+            return ""
+        secs := Ceil((ms - (A_TickCount - start)) / 1000)
+        if (secs != lastSec)
+            lastSec := secs, SetStatus("No Contact in " secs "s`nTap Right Alt (or any key) = OFF.")
+        if StaysVisible(c, 150) {
+            Log(" vdrop: the red box showed up late - closing it")
+            CloseRedBox(c)
+            return "failed"
+        }
+        Sleep 20
+    }
     return "dropped"
 }
 

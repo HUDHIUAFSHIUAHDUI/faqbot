@@ -83,6 +83,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 
 **Fixed waits made random (10/19, Owlman only):** Upload held 0.2 s + 0.3–0.8 s before the click; 0.9–1.4 s after it before closing the popup; template page settle 0.4–0.8 s; new lead's page settle 0.5–1 s; red-box watch 1.5–2 s. Each picks a new value every lead. Saves ~0.6 s per lead on average.
 
+**Late red box (10/20):** after the red-box watch was cut to 1.5–2 s, a box that showed up later made Owlman think the drop worked, and the box then blocked No Contact. Now: after a "went through" drop, `WatchLateFail` keeps watching for the box during the 1–3 s wait before No Contact; and right before the No Contact click, `HangUpAndNoContact(..., box)` checks once more. Either way a late box is handled like a failed drop: Close, 1–3 s, hang up, No Contact. Harness `vdlate` (box after 2.5 s, call still up).
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.
