@@ -35,6 +35,13 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end
 .page-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
 .page-head p{margin:0;color:var(--muted);font-size:13.5px;max-width:62ch}
 .stat .big.ink{color:var(--ink)}
+.stats.three{grid-template-columns:repeat(3,1fr)}
+@media (max-width:760px){.stats.three{grid-template-columns:repeat(2,1fr)}}
+.f-phone{width:170px}
+.line-extra{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:10px;align-items:end}
+@media (max-width:640px){.line-extra{grid-template-columns:minmax(0,1fr)}}
+.resid{font-size:12.5px;color:var(--muted);font-weight:400}
+.editing{font-size:13px;padding:8px 12px;border-radius:7px;background:var(--accent-soft);color:var(--ink);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .stat .big.warn{color:var(--warn)}
 tr.now td{background:var(--accent-soft)}
 td.zero{color:var(--muted)}
@@ -90,7 +97,7 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
   <header>
     <div>
       <h1>Commission Tracker</h1>
-      <p class="sub">Associate rates · first-year commission</p>
+      <p class="sub">Associate rates · advances, payouts and residuals</p>
     </div>
   </header>
 
@@ -121,27 +128,30 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
     <div class="page-head">
       <p>What you actually make. Each premium your client pays earns one month of commission. The first ones pay back your advance; after that the commission is paid to you each month until the policy's first year is done. As of <b id="pay-today"></b>.</p>
     </div>
-    <section class="stats" aria-label="Pay totals">
+    <section class="stats three" aria-label="Pay totals">
       <div class="stat"><span class="label">Earned so far</span><span class="big" id="p-earned">$0.00</span><span class="range">Commission your clients' payments have actually earned</span></div>
       <div class="stat"><span class="label">Advance not paid off yet</span><span class="big warn" id="p-owed">$0.00</span><span class="range">Advance money clients haven't paid back yet. If a policy cancels, this is what can be taken back.</span></div>
-      <div class="stat"><span class="label">Paid to you so far</span><span class="big ink" id="p-paid">$0.00</span><span class="range">Advances plus monthly payouts up to today</span></div>
-      <div class="stat"><span class="label">Still coming to you</span><span class="big ink" id="p-coming">$0.00</span><span class="range">Monthly payouts after advances are paid off</span></div>
+      <div class="stat"><span class="label">Paid to you so far</span><span class="big ink" id="p-paid">$0.00</span><span class="range">Advances, monthly payouts and residuals up to today</span></div>
+      <div class="stat"><span class="label">Still coming to you</span><span class="big ink" id="p-coming">$0.00</span><span class="range">First-year payouts after advances are paid off</span></div>
+      <div class="stat"><span class="label">Residuals this month</span><span class="big" id="p-resnow">$0.00</span><span class="range">Renewal commission from policies past their first year</span></div>
+      <div class="stat"><span class="label">Residuals paid so far</span><span class="big ink" id="p-respaid">$0.00</span><span class="range">All renewal commission up to today</span></div>
     </section>
     <section class="panel">
       <h2>Month by month</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Month</th><th class="r">Advances paid</th><th class="r">Monthly payouts</th><th class="r">Total paid to you</th><th class="r">Earned by client payments</th><th class="r">Advance owed at month end</th></tr></thead>
+          <thead><tr><th>Month</th><th class="r">Advances paid</th><th class="r">Monthly payouts</th><th class="r">Residuals</th><th class="r">Total paid to you</th><th class="r">Earned by client payments</th><th class="r">Advance owed at month end</th></tr></thead>
           <tbody id="month-body"></tbody>
         </table>
       </div>
+      <p class="sub" id="month-note">Shows every month with pay, through 24 months from now. Residuals assume the client keeps paying.</p>
       <p class="empty" id="month-empty">Log a sale to see your pay month by month.</p>
     </section>
     <section class="panel">
       <h2>Each sale</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Sale</th><th class="r">Full first year</th><th class="r">Advance</th><th class="r">Earned so far</th><th class="r">Advance owed</th><th>After advance is paid off</th></tr></thead>
+          <thead><tr><th>Sale</th><th class="r">Full first year</th><th class="r">Advance</th><th class="r">Earned so far</th><th class="r">Advance owed</th><th>After advance is paid off</th><th>Residual</th></tr></thead>
           <tbody id="each-body"></tbody>
         </table>
       </div>
@@ -149,12 +159,18 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
   </section>
 
   <form class="panel" id="sale-form" autocomplete="off">
-    <h2>Log a sale</h2>
+    <h2 id="form-title">Log a sale</h2>
+    <div class="editing" id="editing" hidden><span id="editing-text"></span><button type="button" class="btn link" id="cancel-edit">Cancel editing</button></div>
     <div class="row">
       <label class="f-date">Sale date<input type="date" id="f-date" required></label>
       <label class="f-date">Effective date<input type="date" id="f-eff"></label>
-      <label class="f-client">Client or note (optional)<input type="text" id="f-client" maxlength="80" placeholder="e.g. first name + last initial"></label>
+      <label class="f-date">Renewal date<input type="date" id="f-renew"></label>
     </div>
+    <div class="row">
+      <label class="f-client">Client name<input type="text" id="f-client" maxlength="80"></label>
+      <label class="f-phone">Phone<input type="tel" id="f-phone" maxlength="30" inputmode="tel"></label>
+    </div>
+    <p class="sub" style="margin:0">Renewal date is when the policy's second year starts. Leave it blank to use 12 months after the effective date.</p>
     <div id="lines" style="display:grid;gap:10px"></div>
     <div><button type="button" class="btn" id="add-line">+ Add another product</button></div>
     <div class="total">
@@ -174,6 +190,17 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
     <p class="empty" id="sales-empty">No sales logged yet. Add one above and it shows up here and in the totals.</p>
   </section>
 
+  <section class="panel">
+    <h2>Renewals in the next 60 days</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Renewal date</th><th>Client</th><th>Phone</th><th>Policies</th></tr></thead>
+        <tbody id="renew-body"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="renew-empty">No renewals coming up in the next 60 days.</p>
+  </section>
+
   <details class="panel" id="backup">
     <summary>Back up or restore sales</summary>
     <p class="sub">Copy this text somewhere safe (notes app, email to yourself). Paste it back here to restore sales on another device or after clearing your browser.</p>
@@ -184,6 +211,7 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
 
   <section class="rules">
     <p><b>Savings page.</b> The advance is paid in the month of the sale. The client's first premium is due on the effective date (the sale date if you leave it blank), then one a month. Payouts after the advance is paid off are shown in the month the client pays; the carrier may pay a few days or weeks later. Cancelled policies are not removed automatically, so delete a sale if it cancels.</p>
+    <p><b>Residuals.</b> From the renewal date on, each premium the client pays earns the sheet's renewal rate (the 2nd and 3rd rate columns, for the years in Pay Years), paid monthly. $ renewal rates are $ × members per month. Products with no renewal rate on the sheet pay no residual.</p>
     <p><b>How commission is counted.</b> % rates: AV × your Associate rate × advance months ÷ 12, where AV = monthly premium × 12. $ rates (PMPM / Flat PM): $ × members × advance months. Products with no advance months listed (ACA) count 1 month. One-time products (annuity deposits): premium × rate.</p>
     <p>Rates come from the printed commission sheet. You can change the rate or months on any line before saving if a number is different on your statement.</p>
   </section>
@@ -301,7 +329,11 @@ var RATES = /*RATES*/;
       var tr = document.createElement('tr'); tr.className = 'sale';
       var td = function(text, cls){ var e = document.createElement('td'); if (cls) e.className = cls; e.textContent = text; tr.appendChild(e); return e; };
       td(niceDate(s.date));
-      td(s.client || (s.lines.length + ' product' + (s.lines.length === 1 ? '' : 's')));
+      var who = td(s.client || (s.lines.length + ' product' + (s.lines.length === 1 ? '' : 's')));
+      var extra = [];
+      if (s.phone) extra.push(s.phone);
+      extra.push('Renews ' + niceDate(renewalOf(s)));
+      var sm = document.createElement('div'); sm.className = 'resid'; sm.textContent = extra.join(' · '); who.appendChild(sm);
       td(fmt(s.av), 'r num'); td(fmt(s.commission), 'r num');
       var act = td('', 'r');
       var del = document.createElement('button'); del.type = 'button'; del.className = 'btn link danger';
@@ -311,14 +343,40 @@ var RATES = /*RATES*/;
         pendingDelete = null; del.disabled = true;
         store.remove(s.id).catch(function(e){ banner('Could not delete that sale (' + (e && e.code || 'error') + ').'); renderTable(); });
       };
-      act.appendChild(del);
+      var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn link'; ed.textContent = 'Edit';
+      ed.onclick = function(){ loadSale(s); };
+      act.appendChild(ed); act.appendChild(del);
       body.appendChild(tr);
       s.lines.forEach(function(l){
         var d = document.createElement('tr'); d.className = 'detail';
-        var cells = ['', l.carrier + ' · ' + l.product + (l.states ? ' (' + l.states + ')' : '') + ' — ' + l.formula, fmt(l.av), fmt(l.commission), ''];
+        var cells = ['', l.carrier + ' · ' + l.product + (l.states ? ' (' + l.states + ')' : '') + (l.policy ? ' · Policy ' + l.policy : '') + ' — ' + l.formula, fmt(l.av), fmt(l.commission), ''];
         cells.forEach(function(t, i){ var e = document.createElement('td'); e.textContent = t; if (i === 2 || i === 3) e.className = 'r num'; d.appendChild(e); });
         body.appendChild(d);
       });
+    });
+  }
+  function renewalOf(s){ return s.renewalDate || addMonths(s.effDate || s.date, 12); }
+  function lineSegs(l){
+    if (l.renewals) return l.renewals;
+    var i = findRate(l);
+    return i < 0 ? [] : parseRenewals(RATES[i].p, RATES[i].r2, RATES[i].r3).segments;
+  }
+  function renderRenewals(){
+    var today = ymd(new Date()), until = ymd(new Date(Date.now() + 60 * 864e5));
+    var body = $('renew-body'); body.textContent = '';
+    var list = [];
+    sales.forEach(function(s){
+      var r = renewalOf(s), guard = 0;
+      while (r < today && guard++ < 60) r = addMonths(r, 12);
+      if (r <= until) list.push({ s: s, r: r });
+    });
+    list.sort(function(a,b){ return a.r < b.r ? -1 : a.r > b.r ? 1 : 0; });
+    $('renew-empty').hidden = list.length > 0;
+    list.forEach(function(x){
+      var tr = document.createElement('tr');
+      var pols = x.s.lines.map(function(l){ return l.carrier + ' ' + l.product + (l.policy ? ' #' + l.policy : ''); }).join('; ');
+      [niceDate(x.r), x.s.client || '—', x.s.phone || '—', pols].forEach(function(t){ var e = document.createElement('td'); e.textContent = t; tr.appendChild(e); });
+      body.appendChild(tr);
     });
   }
   // Savings page
@@ -329,12 +387,14 @@ var RATES = /*RATES*/;
   function renderPay(){
     var today = ymd(new Date()), nowIdx = monthIndex(today);
     $('pay-today').textContent = niceDate(today);
-    var months = {}, tot = { earned:0, owed:0, paid:0, coming:0 };
+    var months = {}, tot = { earned:0, owed:0, paid:0, coming:0, resNow:0, resPaid:0 };
+    var horizon = ymd(new Date(new Date().getFullYear(), new Date().getMonth() + 25, 0));
+    var mget = function(mi){ return months[mi] || (months[mi] = { adv:0, out:0, res:0, earned:0, bal:{} }); };
     var each = $('each-body'); each.textContent = '';
     var list = sales.slice().sort(function(a,b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
     list.forEach(function(s){
       var eff = s.effDate || s.date;
-      var row = { full:0, adv:0, earned:0, owed:0, monthly:0, startIdx:null };
+      var row = { full:0, adv:0, earned:0, owed:0, monthly:0, startIdx:null, resFirst:{}, resIdx:null };
       s.lines.forEach(function(l){
         var res = lineResult(l);
         var ev = lineSchedule(res, s.date, eff);
@@ -347,7 +407,7 @@ var RATES = /*RATES*/;
         var lastBal = 0, lastBalSet = false;
         ev.forEach(function(e){
           var mi = monthIndex(e.date);
-          var m = months[mi] || (months[mi] = { adv:0, out:0, earned:0, bal:{} });
+          var m = mget(mi);
           m.adv += e.advancePaid; m.out += e.earnedPaid; m.earned += e.earned;
           if (e.date <= today) {
             row.earned += e.earned; tot.paid += e.advancePaid + e.earnedPaid;
@@ -357,23 +417,40 @@ var RATES = /*RATES*/;
           }
         });
         if (lastBalSet) row.owed += lastBal;
+        var segs = lineSegs(l);
+        if (segs.length && l.payYears !== 'One-time') {
+          var rs = residualSchedule({ premium: l.premium, members: l.members, payType: l.payYears }, segs, renewalOf(s), horizon);
+          rs.forEach(function(e){
+            var mi3 = monthIndex(e.date);
+            mget(mi3).res += e.residual;
+            if (e.date <= today) tot.resPaid += e.residual;
+            if (mi3 === nowIdx) tot.resNow += e.residual;
+          });
+          if (rs.length) {
+            var fi = monthIndex(rs[0].date);
+            row.resFirst[fi] = (row.resFirst[fi] || 0) + rs[0].residual;
+            row.resIdx = row.resIdx == null ? fi : Math.min(row.resIdx, fi);
+          }
+        }
         // advance still owed at the end of each month for this line
         var bal = 0, evIdx = 0, first = monthIndex(ev[0].date), last = monthIndex(ev[ev.length-1].date);
         for (var mi2 = first; mi2 <= last; mi2++) {
           while (evIdx < ev.length && monthIndex(ev[evIdx].date) <= mi2) { bal = ev[evIdx].balance; evIdx++; }
-          var mm = months[mi2] || (months[mi2] = { adv:0, out:0, earned:0, bal:{} });
+          var mm = mget(mi2);
           mm.bal[s.id + ':' + l.product] = bal;
         }
       });
       tot.earned += row.earned; tot.owed += row.owed;
       var tr = document.createElement('tr');
       var cells = [niceDate(s.date) + (s.client ? ' · ' + s.client : ''), fmt(cents(row.full)), fmt(cents(row.adv)), fmt(cents(row.earned)), fmt(cents(row.owed)),
-        row.monthly ? fmt(cents(row.monthly)) + '/mo from ' + monthName(row.startIdx) : 'Paid in full up front'];
+        row.monthly ? fmt(cents(row.monthly)) + '/mo from ' + monthName(row.startIdx) : 'Paid in full up front',
+        row.resIdx != null ? fmt(cents(row.resFirst[row.resIdx])) + '/mo from ' + monthName(row.resIdx) : 'None on the sheet'];
       cells.forEach(function(t, i){ var e = document.createElement('td'); e.textContent = t; if (i >= 1 && i <= 4) e.className = 'r num'; tr.appendChild(e); });
       each.appendChild(tr);
     });
     $('p-earned').textContent = fmt(cents(tot.earned)); $('p-owed').textContent = fmt(cents(tot.owed));
-    $('p-paid').textContent = fmt(cents(tot.paid)); $('p-coming').textContent = fmt(cents(tot.coming));
+    $('p-paid').textContent = fmt(cents(tot.paid + tot.resPaid)); $('p-coming').textContent = fmt(cents(tot.coming));
+    $('p-resnow').textContent = fmt(cents(tot.resNow)); $('p-respaid').textContent = fmt(cents(tot.resPaid));
     var body = $('month-body'); body.textContent = '';
     var keys = Object.keys(months).map(Number).sort(function(a,b){ return a-b; });
     $('month-empty').hidden = keys.length > 0;
@@ -381,7 +458,7 @@ var RATES = /*RATES*/;
       var m = months[k], bal = 0;
       Object.keys(m.bal).forEach(function(id){ bal += m.bal[id]; });
       var tr = document.createElement('tr'); if (k === nowIdx) tr.className = 'now';
-      var cells = [monthName(k) + (k === nowIdx ? ' (this month)' : ''), m.adv, m.out, m.adv + m.out, m.earned, bal];
+      var cells = [monthName(k) + (k === nowIdx ? ' (this month)' : ''), m.adv, m.out, m.res, m.adv + m.out + m.res, m.earned + m.res, bal];
       cells.forEach(function(v, i){
         var e = document.createElement('td');
         if (i === 0) e.textContent = v; else { e.textContent = fmt(cents(v)); e.className = 'r num' + (cents(v) === 0 ? ' zero' : ''); }
@@ -429,7 +506,7 @@ var RATES = /*RATES*/;
                function(e){ msg.textContent = 'Restore stopped (' + (e && e.code || 'error') + '). Try again.'; });
   };
 
-  function renderAll(){ renderTotals(); renderTable(); renderPay(); }
+  function renderAll(){ renderTotals(); renderTable(); renderPay(); renderRenewals(); }
 
   // Sale form
   var lineSeq = 0;
@@ -447,6 +524,10 @@ var RATES = /*RATES*/;
         '<label>Advance months<input id="a'+n+'" type="number" inputmode="numeric" min="0" max="12" step="1"></label>' +
         '<label id="memwrap'+n+'" hidden>Members on plan<input id="mem'+n+'" type="number" inputmode="numeric" min="1" step="1" value="1"></label>' +
       '</div>' +
+      '<div class="line-extra">' +
+        '<label>Policy number<input id="pol'+n+'" type="text" maxlength="40"></label>' +
+        '<span class="resid" id="rs'+n+'"></span>' +
+      '</div>' +
       '<div class="note" id="note'+n+'" hidden></div>' +
       '<div class="line-out"><span id="fx'+n+'">Pick a product to see its rate.</span><span>AV <span class="num" id="lav'+n+'">$0.00</span> · <strong class="num" id="lc'+n+'">$0.00</strong></span></div>' +
       '<div><button type="button" class="btn link danger" id="x'+n+'">Remove product</button></div>';
@@ -461,6 +542,8 @@ var RATES = /*RATES*/;
     function pick(){
       var r = RATES[ps.value];
       box.rate = r || null;
+      box.segs = r ? parseRenewals(r.p, r.r2, r.r3) : null;
+      $('rs'+n).textContent = r ? 'Residual: ' + renewalText(box.segs.segments) : '';
       if (r) {
         $('r'+n).value = r.type === '$' ? r.value : cents(r.value * 100);
         $('a'+n).value = defaultMonths(r);
@@ -472,6 +555,7 @@ var RATES = /*RATES*/;
         if (r.a == null) notes.push('No advance months on the sheet for this product, so it counts 1 month. Change it if you are paid differently.');
         if (r.s && r.s.indexOf('…') !== -1) notes.push('This state list was cut off on the printout (' + r.s + '). Check your client\'s state is really on it.');
         if (r.p === 'One-time') notes.push('One-time product: commission is the deposit × rate, and AV is the deposit.');
+        if (box.segs.unused) notes.push('The sheet lists a renewal rate for this product with no years next to it, so that rate is not counted.');
         $('note'+n).textContent = notes.join(' '); $('note'+n).hidden = !notes.length;
       } else { $('note'+n).hidden = true; $('memwrap'+n).hidden = true; }
       update();
@@ -488,13 +572,22 @@ var RATES = /*RATES*/;
         months: r.p === 'One-time' ? 0 : parseFloat($('a'+n).value)
       };
       var out = calcLine(line);
-      return { r: r, line: line, out: out };
+      return { r: r, line: line, out: out, segs: box.segs, policy: $('pol'+n).value.trim() };
+    };
+    box.fill = function(l){
+      $('m'+n).value = l.premium;
+      $('r'+n).value = l.rateType === '$' ? l.rate : cents(l.rate * 100);
+      if (l.payYears !== 'One-time') $('a'+n).value = l.months;
+      $('mem'+n).value = l.members || 1;
+      $('pol'+n).value = l.policy || '';
     };
     box.fx = function(res){
       $('fx'+n).textContent = res ? res.out.formula : 'Pick a product to see its rate.';
       $('lav'+n).textContent = fmt(res ? res.out.av : 0); $('lc'+n).textContent = fmt(res ? res.out.commission : 0);
     };
+    box.pickRate = function(idx){ cs.value = RATES[idx].c; cs.onchange(); ps.value = String(idx); pick(); };
     update();
+    return box;
   }
   function update(){
     var tc = 0, ta = 0;
@@ -503,7 +596,42 @@ var RATES = /*RATES*/;
   }
   $('add-line').onclick = addLine;
 
-  function resetForm(){ $('lines').textContent = ''; $('f-client').value = ''; $('f-eff').value = ''; addLine(); }
+  var editingId = null;
+  function setEditing(s){
+    editingId = s ? s.id : null;
+    $('editing').hidden = !s;
+    $('editing-text').textContent = s ? 'Editing the ' + niceDate(s.date) + ' sale' + (s.client ? ' for ' + s.client : '') + '. Saving replaces it.' : '';
+    $('form-title').textContent = s ? 'Edit sale' : 'Log a sale';
+    $('save').textContent = s ? 'Save changes' : 'Save sale';
+  }
+  function resetForm(){
+    $('lines').textContent = '';
+    ['f-client','f-phone','f-eff','f-renew'].forEach(function(id){ $(id).value = ''; });
+    setEditing(null); addLine();
+  }
+  function findRate(l){
+    for (var i = 0; i < RATES.length; i++) {
+      var r = RATES[i];
+      if (r.c === l.carrier && r.n === l.product && r.s === (l.states || '') && r.p === l.payYears && r.g === l.grouping) return i;
+    }
+    return -1;
+  }
+  function loadSale(s){
+    $('lines').textContent = '';
+    $('f-date').value = s.date; $('f-eff').value = s.effDate || ''; $('f-renew').value = s.renewalDate || '';
+    $('f-client').value = s.client || ''; $('f-phone').value = s.phone || '';
+    var missing = 0;
+    s.lines.forEach(function(l){
+      var box = addLine(), idx = findRate(l);
+      if (idx < 0) { missing++; return; }
+      box.pickRate(idx); box.fill(l);
+    });
+    update(); setEditing(s);
+    var msg = $('save-msg'); msg.className = missing ? 'msg err' : 'msg';
+    msg.textContent = missing ? missing + ' product(s) could not be matched to the rate sheet. Pick them again.' : '';
+    $('sale-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  $('cancel-edit').onclick = function(){ resetForm(); $('save-msg').textContent = ''; };
 
   var saving = false;
   $('sale-form').onsubmit = function(ev){
@@ -523,19 +651,23 @@ var RATES = /*RATES*/;
       lines.push({
         carrier: res.r.c, grouping: res.r.g, product: res.r.n, states: res.r.s, payYears: res.r.p, sheetRate: res.r.r, sheetPage: res.r.pg,
         rateType: l.rateType, rate: l.rate, months: l.months, members: l.members, premium: l.premium,
-        av: res.out.av, commission: res.out.commission, formula: res.out.formula
+        av: res.out.av, commission: res.out.commission, formula: res.out.formula,
+        policy: res.policy, renewals: res.segs.segments
       });
     });
     if (!date) problem = 'Pick the sale date.';
     if (problem) { msg.className = 'msg err'; msg.textContent = problem; return; }
     var doc = {
-      date: date, effDate: $('f-eff').value || '', client: $('f-client').value.trim(), lines: lines, createdAt: Date.now(),
+      date: date, effDate: $('f-eff').value || '', renewalDate: $('f-renew').value || '',
+      client: $('f-client').value.trim(), phone: $('f-phone').value.trim(), lines: lines, createdAt: Date.now(),
       av: cents(lines.reduce(function(t,l){ return t + l.av; }, 0)),
       commission: cents(lines.reduce(function(t,l){ return t + l.commission; }, 0))
     };
     saving = true; $('save').disabled = true; msg.textContent = 'Saving…';
-    store.add(doc).then(function(){
-      msg.textContent = 'Saved ' + fmt(doc.commission) + ' sale.'; resetForm();
+    var editing = editingId;
+    if (editing) { var orig = sales.filter(function(x){ return x.id === editing; })[0]; doc.createdAt = orig && orig.createdAt || doc.createdAt; doc.id = editing; }
+    (editing ? store.put(doc) : store.add(doc)).then(function(){
+      msg.textContent = (editing ? 'Updated ' : 'Saved ') + fmt(doc.commission) + ' sale.'; resetForm();
     }, function(e){
       msg.className = 'msg err';
       msg.textContent = e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old sales to save new ones.' : 'Could not save (' + (e && e.code || 'error') + '). Try again.';

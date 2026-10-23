@@ -91,5 +91,74 @@ function lineSchedule(res, saleDate, effDate) {
   return events;
 }
 
+// Residual (renewal) commission from year 2 on.
+// payText is the sheet's "Pay Years" (e.g. "Yr 1, 2-10, 11+", "Yr1,2,3-10", "Yrs 1/2+"),
+// r2/r3 are the sheet's 2nd and 3rd rate columns. Returns
+// {segments: [{from, to (null = no end), rateType, rate}], unused: true if the sheet lists a
+// rate with no years to apply it to}.
+function parseRenewals(payText, r2, r3) {
+  var rates = [r2, r3].filter(function (r) { return r && String(r).trim(); }).map(parseRate);
+  var tokens = String(payText).replace(/[A-Za-z]/g, ' ').split(/[,\/]/)
+    .map(function (t) { return t.replace(/\s+/g, ''); }).filter(Boolean);
+  var ranges = [], end = 1;
+  if (tokens.length) {
+    var first = tokens[0];
+    if (/^1-(\d+)$/.test(first)) end = +first.split('-')[1];
+    if (first === '1+') end = null;
+    tokens.slice(1).forEach(function (t) {
+      var from, to;
+      if (t === '++') { from = (ranges.length ? ranges[ranges.length - 1].to : 1) + 1; to = null; }
+      else if (/^\d+\+$/.test(t)) { from = +t.slice(0, -1); to = null; }
+      else if (/^\d+-\d+$/.test(t)) { from = +t.split('-')[0]; to = +t.split('-')[1]; }
+      else if (/^\d+$/.test(t)) { from = +t; to = +t; }
+      else return;
+      ranges.push({ from: from, to: to });
+    });
+  }
+  // "Flat", "Y1-6", "Yrs 1+" with a renewal rate: the renewal rate covers the rest of the paid years.
+  if (!ranges.length && rates.length) ranges.push({ from: 2, to: tokens.length ? end : null });
+  var segments = [];
+  ranges.forEach(function (rg, i) {
+    if (rates[i] && rates[i].value > 0) segments.push({ from: rg.from, to: rg.to, rateType: rates[i].type, rate: rates[i].value });
+  });
+  return { segments: segments, unused: rates.length > ranges.length };
+}
+
+function renewalText(segments) {
+  if (!segments || !segments.length) return 'No residual on the sheet';
+  return segments.map(function (s) {
+    var r = s.rateType === '$' ? '$' + s.rate.toFixed(2) + '/member/mo' : cents(s.rate * 100) + '%';
+    var yrs = s.to == null ? 'yr ' + s.from + '+' : s.from === s.to ? 'yr ' + s.from : 'yrs ' + s.from + '-' + s.to;
+    return r + ' ' + yrs;
+  }).join(', ');
+}
+
+// Residual paid each month from the renewal date (start of policy year 2) up to and
+// including the month `untilYmd`. line: {premium, members, payType}; segments from parseRenewals.
+function residualSchedule(line, segments, renewalDate, untilYmd) {
+  var out = [];
+  if (!segments || !segments.length || line.payType === 'One-time') return out;
+  var premium = Number(line.premium) || 0, members = Number(line.members) || 1;
+  var stop = monthIndex(untilYmd);
+  for (var j = 0; j < 1200; j++) {
+    var date = addMonths(renewalDate, j);
+    if (monthIndex(date) > stop) break;
+    var year = 2 + Math.floor(j / 12), seg = null;
+    for (var i = 0; i < segments.length; i++) {
+      var s = segments[i];
+      if (year >= s.from && (s.to == null || year <= s.to)) { seg = s; break; }
+    }
+    if (!seg) {
+      var later = segments.some(function (s) { return s.from > year; });
+      if (!later) break;
+      continue;
+    }
+    var amt = seg.rateType === '$' ? seg.rate * members : premium * seg.rate;
+    out.push({ date: date, year: year, residual: cents(amt) });
+  }
+  return out;
+}
+
 if (typeof module !== 'undefined') module.exports = { parseRate: parseRate, defaultMonths: defaultMonths, calcLine: calcLine, cents: cents,
-  lineSchedule: lineSchedule, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey };
+  lineSchedule: lineSchedule, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey,
+  parseRenewals: parseRenewals, renewalText: renewalText, residualSchedule: residualSchedule };
