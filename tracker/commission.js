@@ -44,7 +44,52 @@ function calcLine(line) {
     commission = av * rate * months / 12;
     formula = 'AV ' + av.toFixed(2) + ' x ' + cents(rate * 100) + '% x ' + months + '/12';
   }
-  return { av: cents(av), commission: cents(commission), formula: formula };
+  // monthly = commission earned by each premium the client pays; fullYear = all first-year commission.
+  var monthly = 0, fullYear = commission;
+  if (line.payType !== 'One-time') {
+    monthly = line.rateType === '$' ? rate * members : premium * rate;
+    fullYear = monthly * 12;
+  }
+  return { av: cents(av), commission: cents(commission), formula: formula,
+           monthly: monthly, fullYear: cents(fullYear), advanceMonths: line.payType === 'One-time' ? 0 : Math.min(months, 12) };
 }
 
-if (typeof module !== 'undefined') module.exports = { parseRate: parseRate, defaultMonths: defaultMonths, calcLine: calcLine, cents: cents };
+// Month arithmetic on YYYY-MM-DD strings (local calendar, no time zones).
+function monthIndex(ymd) { var p = ymd.split('-'); return (+p[0]) * 12 + (+p[1] - 1); }
+function monthKey(idx) { return Math.floor(idx / 12) + '-' + String(idx % 12 + 1).padStart(2, '0'); }
+function addMonths(ymd, n) {
+  var p = ymd.split('-'), idx = (+p[0]) * 12 + (+p[1] - 1) + n;
+  var y = Math.floor(idx / 12), m = idx % 12 + 1;
+  var last = new Date(y, m, 0).getDate();
+  return y + '-' + String(m).padStart(2, '0') + '-' + String(Math.min(+p[2], last)).padStart(2, '0');
+}
+
+// How one product line pays out over its first year.
+// The advance is paid in the sale month. The client's k-th premium (k = 1..12) is due
+// k-1 months after the effective date and earns one month of commission. The first
+// `advanceMonths` premiums pay back the advance; each later premium is paid out to you.
+// Returns events: {date, advancePaid, earnedPaid, earned, balance} where balance is the
+// advance still unpaid after that event. Totals add up to fullYear exactly.
+function lineSchedule(res, saleDate, effDate) {
+  var events = [];
+  var advance = res.commission, full = res.fullYear;
+  if (!res.monthly) { // one-time product: all paid and earned at the sale
+    events.push({ date: saleDate, advancePaid: full, earnedPaid: 0, earned: full, balance: 0 });
+    return events;
+  }
+  events.push({ date: saleDate, advancePaid: advance, earnedPaid: 0, earned: 0, balance: advance });
+  var earnedSum = 0, paidSum = advance;
+  for (var k = 1; k <= 12; k++) {
+    var earned = k === 12 ? cents(full - earnedSum) : cents(res.monthly);
+    earnedSum = cents(earnedSum + earned);
+    var paid = 0;
+    if (k > res.advanceMonths) { paid = k === 12 ? cents(full - paidSum) : cents(res.monthly); paidSum = cents(paidSum + paid); }
+    var balance = Math.max(0, cents(advance - earnedSum));
+    if (k >= res.advanceMonths) balance = 0;
+    events.push({ date: addMonths(effDate, k - 1), advancePaid: 0, earnedPaid: paid, earned: earned, balance: balance });
+  }
+  return events;
+}
+
+if (typeof module !== 'undefined') module.exports = { parseRate: parseRate, defaultMonths: defaultMonths, calcLine: calcLine, cents: cents,
+  lineSchedule: lineSchedule, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey };
