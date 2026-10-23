@@ -117,11 +117,24 @@ function parseRenewals(payText, r2, r3) {
   }
   // "Flat", "Y1-6", "Yrs 1+" with a renewal rate: the renewal rate covers the rest of the paid years.
   if (!ranges.length && rates.length) ranges.push({ from: 2, to: tokens.length ? end : null });
-  var segments = [];
-  ranges.forEach(function (rg, i) {
-    if (rates[i] && rates[i].value > 0) segments.push({ from: rg.from, to: rg.to, rateType: rates[i].type, rate: rates[i].value });
-  });
-  return { segments: segments, unused: rates.length > ranges.length };
+  // Years listed with no rate next to them pay the previous (2nd column) rate.
+  // A rate with no years listed (e.g. "Yrs 1, 2-10" with a 3rd column) pays from the year after
+  // the last listed years, for as long as the policy is active.
+  var segments = [], unused = false;
+  if (rates.length) {
+    ranges.forEach(function (rg, i) {
+      var r = rates[Math.min(i, rates.length - 1)];
+      if (r.value > 0) segments.push({ from: rg.from, to: rg.to, rateType: r.type, rate: r.value });
+    });
+    for (var j = ranges.length; j < rates.length; j++) {
+      var last = ranges[ranges.length - 1];
+      if (!last || last.to == null) { unused = true; break; }
+      var range = { from: last.to + 1, to: null };
+      ranges.push(range);
+      if (rates[j].value > 0) segments.push({ from: range.from, to: null, rateType: rates[j].type, rate: rates[j].value });
+    }
+  }
+  return { segments: segments, unused: unused };
 }
 
 function renewalText(segments) {
