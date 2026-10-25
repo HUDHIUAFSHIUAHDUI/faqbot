@@ -20,6 +20,10 @@ h2{font-size:17px;font-weight:700;letter-spacing:.04em}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 header{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
 .logo{width:84px;height:84px;flex:none;border-radius:50%;object-fit:cover;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+.saved{font-size:12.5px;margin:4px 0 0;color:var(--accent)}
+.saved::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
+.saved.off{color:var(--warn)}
+.banner a{color:inherit;font-weight:600}
 .brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:2px 0 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:none;color:var(--muted);padding:6px 10px;font:500 13px var(--body);cursor:pointer}
@@ -94,6 +98,7 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
       <h1>Commission Tracker</h1>
       <p class="brand">National Closers Collective</p>
       <p class="sub">Associate rates · advances, payouts and residuals</p>
+      <p class="saved" id="saved-status" hidden></p>
     </div>
   </header>
 
@@ -217,13 +222,6 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
     <p class="empty" id="renew-empty">No renewals coming up in the next 60 days.</p>
   </section>
 
-  <details class="panel" id="backup">
-    <summary>Back up or restore sales</summary>
-    <p class="sub">Copy this text somewhere safe (notes app, email to yourself). Paste it back here to restore sales on another device or after clearing your browser.</p>
-    <div class="row"><button type="button" class="btn" id="bk-copy">Copy backup</button><span class="msg" id="bk-msg" role="status"></span></div>
-    <textarea id="bk-text" aria-label="Backup text"></textarea>
-    <div><button type="button" class="btn" id="bk-restore">Restore from pasted text</button></div>
-  </details>
 
   <section class="rules">
     <p><b>Savings page.</b> The advance is paid in the month of the sale. The client's first premium is due on the effective date (the sale date if you leave it blank), then one a month. Payouts after the advance is paid off are shown in the month the client pays; the carrier may pay a few days or weeks later. Cancelled policies are not removed automatically, so delete a sale if it cancels.</p>
@@ -469,28 +467,21 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
     };
   }
 
-  // Sales storage: shared db when the viewer provides it, browser storage otherwise
+  // Sales are saved only to the owner's claude.ai account (the artifact database), never to the browser,
+  // so they are there on every device and never disappear with browser data.
+  var TRACKER_URL = 'https://claude.ai/artifact/Q5w6ak1Gz4wuhGdWzRbEeH';
   var sales = [];
-  var store = null; // {add(doc), remove(id)}
-  function banner(text){ var b = $('banner'); b.textContent = text; b.hidden = !text; }
-
-  function useLocal(reason){
-    banner(reason);
-    function load(){ try { return JSON.parse(localStorage.getItem('sales') || '[]'); } catch(e){ return []; } }
-    function save(list){ localStorage.setItem('sales', JSON.stringify(list)); }
-    sales = load(); renderAll();
-    store = {
-      add: function(doc){ var list = load(); doc.id = 'l' + Date.now(); list.push(doc); save(list); sales = list; renderAll(); return Promise.resolve(); },
-      remove: function(id){ var list = load().filter(function(s){ return s.id !== id; }); save(list); sales = list; renderAll(); return Promise.resolve(); },
-      put: function(doc){ var list = load().filter(function(s){ return s.id !== doc.id; }); list.push(doc); save(list); sales = list; renderAll(); return Promise.resolve(); }
-    };
+  var store = null; // {add(doc), remove(id), put(doc)}
+  function banner(text, withLink){
+    var b = $('banner'); b.textContent = text; b.hidden = !text;
+    if (text && withLink) { b.appendChild(document.createTextNode(' ')); var a = document.createElement('a'); a.href = TRACKER_URL; a.target = '_blank'; a.rel = 'noopener'; a.textContent = TRACKER_URL; b.appendChild(a); }
   }
+  function savedStatus(text, off){ var e = $('saved-status'); e.textContent = text; e.hidden = !text; e.className = 'saved' + (off ? ' off' : ''); }
 
   function connect(){
     var c = window.claude;
-    if (!c || typeof c.use !== 'function') { useLocal('Sales are only being saved in this browser. Open the tracker on claude.ai to save them to your account.'); return; }
-    // On claude.ai: never fall back to browser storage, or sales saved there would seem to vanish later.
-    var blocked = function(text){ store = null; $('save').disabled = true; banner(text); };
+    var blocked = function(text, withLink){ store = null; $('save').disabled = true; banner(text, withLink); savedStatus('Not saving', true); };
+    if (!c || typeof c.use !== 'function') { blocked('This copy of the tracker cannot save sales. Open your tracker here so every sale is saved to your account:', true); return; }
     $('save').disabled = true;
     banner('Loading your saved sales…');
     c.use('db').then(function(db){
@@ -505,6 +496,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
       col.onSnapshot(function(snap){
         sales = snap.docs.map(function(d){ var o = Object.assign({}, d.data()); o.id = d.id; return o; });
         if (first) { first = false; banner(''); $('save').disabled = false; }
+        savedStatus('Saved to your account · ' + sales.length + (sales.length === 1 ? ' sale' : ' sales'));
         renderAll();
       }, function(err){
         blocked('Could not load your saved sales (' + err.code + '). Saving is turned off so nothing gets lost. Reload the page to try again.');
@@ -693,28 +685,6 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
   if (location.hash === '#customers' || location.hash === '#cs') startTab = 'cs';
   if (location.hash === '#official') startTab = 'official';
   showTab(startTab);
-
-  // Backup
-  $('bk-copy').onclick = function(){
-    var text = JSON.stringify({ commissionTrackerBackup: 1, sales: sales });
-    $('bk-text').value = text;
-    var done = function(){ $('bk-msg').className = 'msg'; $('bk-msg').textContent = 'Copied ' + sales.length + ' sales.'; };
-    try {
-      navigator.clipboard.writeText(text).then(done, function(){ $('bk-text').select(); $('bk-msg').textContent = 'Select all the text below and copy it.'; });
-    } catch(e) { $('bk-text').select(); $('bk-msg').textContent = 'Select all the text below and copy it.'; }
-  };
-  $('bk-restore').onclick = function(){
-    var msg = $('bk-msg'); msg.className = 'msg err';
-    var data; try { data = JSON.parse($('bk-text').value); } catch(e) { msg.textContent = 'That text is not a tracker backup. Paste the whole thing.'; return; }
-    if (!data || !Array.isArray(data.sales)) { msg.textContent = 'That text is not a tracker backup. Paste the whole thing.'; return; }
-    if (!store) return;
-    var have = {}; sales.forEach(function(s){ have[s.id] = true; });
-    var todo = data.sales.filter(function(s){ return s && s.id && Array.isArray(s.lines) && !have[s.id]; });
-    var chain = Promise.resolve();
-    todo.forEach(function(s){ chain = chain.then(function(){ return store.put(s); }); });
-    chain.then(function(){ msg.className = 'msg'; msg.textContent = 'Restored ' + todo.length + ' sales' + (todo.length < data.sales.length ? ' (others were already here).' : '.'); },
-               function(e){ msg.textContent = 'Restore stopped (' + (e && e.code || 'error') + '). Try again.'; });
-  };
 
   function nextRenewal(s){
     var today = ymd(new Date()), r = renewalOf(s), guard = 0;
@@ -930,7 +900,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
     var editing = editingId;
     if (editing) { var orig = sales.filter(function(x){ return x.id === editing; })[0]; doc.createdAt = orig && orig.createdAt || doc.createdAt; doc.id = editing; }
     (editing ? store.put(doc) : store.add(doc)).then(function(){
-      msg.textContent = (editing ? 'Updated ' : 'Saved ') + fmt(doc.commission) + ' sale.'; resetForm();
+      msg.textContent = (editing ? 'Updated ' : 'Saved ') + fmt(doc.commission) + ' sale to your account.'; resetForm();
     }, function(e){
       msg.className = 'msg err';
       msg.textContent = e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old sales to save new ones.' : 'Could not save (' + (e && e.code || 'error') + '). Try again.';
