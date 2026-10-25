@@ -1,35 +1,31 @@
 <title>Commission Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --bg:#eef1f4; --panel:#ffffff; --ink:#15202e; --muted:#5b6878; --line:#d5dbe3;
-  --accent:#0d7a5f; --accent-soft:#dff1ea; --warn:#9a5b00; --warn-soft:#fdf0d9;
-  --danger:#b3261e; --field:#f7f9fb; --shadow:0 1px 2px rgba(21,32,46,.06);
-  --display:"Archivo",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  /* One dark look on purpose: black marble with gold, to match the NCC team colors. */
+  --bg:#090908; --panel:rgba(17,16,14,.84); --ink:#ece5d3; --muted:#a69e8b; --line:rgba(201,154,59,.24);
+  --accent:#d9b45a; --accent-soft:rgba(217,180,90,.13); --warn:#f0a94b; --warn-soft:rgba(240,169,75,.13);
+  --danger:#ff8a7a; --field:rgba(9,9,8,.75); --shadow:0 8px 24px rgba(0,0,0,.35);
+  --display:"Cinzel","Times New Roman",serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f151d; --panel:#17202b; --ink:#e6ebf1; --muted:#95a3b4; --line:#2a3644;
-  --accent:#43c49b; --accent-soft:#16352c; --warn:#f0b35a; --warn-soft:#3a2b14;
-  --danger:#ff8a80; --field:#111922; --shadow:none; color-scheme:dark;}}
-:root[data-theme="dark"]{
-  --bg:#0f151d; --panel:#17202b; --ink:#e6ebf1; --muted:#95a3b4; --line:#2a3644;
-  --accent:#43c49b; --accent-soft:#16352c; --warn:#f0b35a; --warn-soft:#3a2b14;
-  --danger:#ff8a80; --field:#111922; --shadow:none; color-scheme:dark;}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-inline:16px;padding-block:20px 48px}
+body{background:linear-gradient(rgba(8,8,7,.45),rgba(8,8,7,.72)),url(/*MARBLE*/) center top/cover fixed,var(--bg);min-height:100vh;color:var(--ink);font:15px/1.5 var(--body);padding-inline:16px;padding-block:20px 48px}
 .wrap{max-width:1040px;margin:0 auto;display:grid;gap:22px}
 h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
-h1{font-size:28px;font-weight:800;letter-spacing:-.01em}
-h2{font-size:17px;font-weight:700}
+h1{font-size:30px;font-weight:700;letter-spacing:.03em;color:var(--accent)}
+h2{font-size:17px;font-weight:700;letter-spacing:.04em}
 .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.logo{width:72px;height:72px;flex:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+.brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:2px 0 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:none;color:var(--muted);padding:6px 10px;font:500 13px var(--body);cursor:pointer}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#15110a}
 .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line)}
-.tabs button{border:0;background:none;color:var(--muted);font:700 15px var(--display);padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button{border:0;background:none;color:var(--muted);font:700 15px var(--display);letter-spacing:.04em;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
 .page{display:grid;gap:16px}
 .page-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
@@ -50,19 +46,19 @@ details summary{cursor:pointer;font-weight:600}
 .banner{padding:10px 14px;border-radius:8px;font-size:13.5px;background:var(--warn-soft);color:var(--warn)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 @media (max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:2px;box-shadow:var(--shadow)}
+.stat{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:2px;box-shadow:var(--shadow)}
 .stat .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
-.stat .big{font-family:var(--display);font-weight:800;font-size:26px;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
+.stat .big{font-family:var(--display);font-weight:700;font-size:26px;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
 .stat .av{font-size:13px;color:var(--muted)}
 .stat .av b{color:var(--ink);font-weight:500}
 .stat .range{font-size:12px;color:var(--muted)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;box-shadow:var(--shadow)}
+.panel{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;box-shadow:var(--shadow)}
 .row{display:flex;flex-wrap:wrap;gap:12px}
 label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:500}
 input,select{font:14px var(--body);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-width:0}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .f-date{width:150px}.f-client{flex:1 1 220px}
-.line{border:1px solid var(--line);border-radius:9px;padding:12px;display:grid;gap:10px;background:var(--bg)}
+.line{border:1px solid var(--line);border-radius:9px;padding:12px;display:grid;gap:10px;background:rgba(0,0,0,.35)}
 .line-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:10px}
 .line-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 @media (max-width:640px){.line-grid,.line-nums{grid-template-columns:minmax(0,1fr)}}
@@ -70,9 +66,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .line-out strong{color:var(--accent);font-size:15px}
 .note{font-size:12.5px;padding:6px 9px;border-radius:6px;background:var(--warn-soft);color:var(--warn)}
 .btn{font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-:root[data-theme="dark"] .btn.primary{color:#07130f}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#07130f}}
+.btn.primary{background:linear-gradient(#e6c672,#c99a3b);border-color:#c99a3b;color:#15110a}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn.link{border:0;background:none;color:var(--muted);padding:4px 6px;font-weight:500}
 .btn.danger{color:var(--danger)}
@@ -95,8 +89,27 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
 
 <div class="wrap">
   <header>
+    <svg class="logo" viewBox="0 0 120 120" role="img" aria-label="National Closers Collective">
+      <defs>
+        <linearGradient id="ncc-gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f1d67e"/><stop offset=".55" stop-color="#c99a3b"/><stop offset="1" stop-color="#8a6420"/>
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="57" fill="#0c0b09" stroke="url(#ncc-gold)" stroke-width="2.5"/>
+      <circle cx="60" cy="60" r="48" fill="#15130f" stroke="url(#ncc-gold)" stroke-width="1"/>
+      <g fill="#c99a3b"><path d="M60 5.5l2 2-2 2-2-2z"/><path d="M60 110.5l2 2-2 2-2-2z"/><path d="M5.5 60l2-2 2 2-2 2z"/><path d="M110.5 60l2-2 2 2-2 2z"/></g>
+      <g fill="#6f5822" opacity=".6">
+        <circle cx="60" cy="38" r="15"/><circle cx="45" cy="46" r="11"/><circle cx="75" cy="46" r="11"/><circle cx="50" cy="31" r="9"/><circle cx="70" cy="31" r="9"/>
+      </g>
+      <g fill="none" stroke="#8a6c2c" stroke-width="1.6" stroke-linecap="round">
+        <path d="M60 88V56M60 70c-6-6-12-10-18-12M60 66c6-5 12-8 18-10M60 60c-3-8-7-13-12-17M60 60c3-8 7-13 12-17"/>
+        <path d="M60 88c-6 4-14 5-22 4M60 88c6 4 14 5 22 4M60 88c-2 6-6 9-10 11M60 88c2 6 6 9 10 11"/>
+      </g>
+      <text x="60" y="72" text-anchor="middle" font-family="Cinzel, 'Times New Roman', serif" font-weight="700" font-size="31" fill="url(#ncc-gold)" stroke="#0c0b09" stroke-width="1.4" paint-order="stroke">NCC</text>
+    </svg>
     <div>
       <h1>Commission Tracker</h1>
+      <p class="brand">National Closers Collective</p>
       <p class="sub">Associate rates · advances, payouts and residuals</p>
     </div>
   </header>
@@ -231,8 +244,8 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
 
   <section class="rules">
     <p><b>Savings page.</b> The advance is paid in the month of the sale. The client's first premium is due on the effective date (the sale date if you leave it blank), then one a month. Payouts after the advance is paid off are shown in the month the client pays; the carrier may pay a few days or weeks later. Cancelled policies are not removed automatically, so delete a sale if it cancels.</p>
-    <p><b>Residuals.</b> From the renewal date on, each premium the client pays earns the sheet's renewal rate (the 2nd and 3rd rate columns, for the years in Pay Years), paid monthly. $ renewal rates are $ × members per month. Products with no renewal rate on the sheet pay no residual.</p>
-    <p><b>How commission is counted.</b> % rates: AV × your Associate rate × advance months ÷ 12, where AV = monthly premium × 12. $ rates (PMPM / Flat PM): $ × members × advance months. Products with no advance months listed (ACA) count 1 month. One-time products (annuity deposits): premium × rate.</p>
+    <p><b>Residuals.</b> From the renewal date on, each premium the client pays earns the sheet's renewal rate (the 2nd and 3rd rate columns, for the years in Pay Years), paid monthly. $ renewal rates are that $ amount per month. Products with no renewal rate on the sheet pay no residual.</p>
+    <p><b>How commission is counted.</b> % rates: AV × your Associate rate × advance months ÷ 12, where AV = monthly premium × 12. $ rates: $ × advance months, per policy (ACA PMPM plans: × members on the plan). Products with no advance months listed (ACA) count 1 month. One-time products (annuity deposits): premium × rate.</p>
     <p>New sales use the Q4 2026 Meda commission schedule; sales saved earlier keep the rates they were saved with. Flat-dollar plans pay per policy, not per person. You can change the rate or months on any line before saving if a number is different on your statement.</p>
   </section>
 </div>
