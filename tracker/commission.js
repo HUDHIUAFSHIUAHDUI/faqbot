@@ -38,7 +38,7 @@ function calcLine(line) {
   } else if (line.rateType === '$') {
     av = premium * 12;
     commission = rate * members * months;
-    formula = '$' + rate.toFixed(2) + ' x ' + members + ' member' + (members === 1 ? '' : 's') + ' x ' + months + ' mo';
+    formula = '$' + rate.toFixed(2) + (members === 1 ? '' : ' x ' + members + ' members') + ' x ' + months + ' mo';
   } else {
     av = premium * 12;
     commission = av * rate * months / 12;
@@ -96,15 +96,21 @@ function lineSchedule(res, saleDate, effDate) {
 // r2/r3 are the sheet's 2nd and 3rd rate columns. Returns
 // {segments: [{from, to (null = no end), rateType, rate}], unused: true if the sheet lists a
 // rate with no years to apply it to}.
-function parseRenewals(payText, r2, r3) {
+function parseRenewals(payText, r2, r3, r1) {
   var rates = [r2, r3].filter(function (r) { return r && String(r).trim(); }).map(parseRate);
   var tokens = String(payText).replace(/[A-Za-z]/g, ' ').split(/[,\/]/)
     .map(function (t) { return t.replace(/\s+/g, ''); }).filter(Boolean);
-  var ranges = [], end = 1;
+  var ranges = [], end = 1, lead = [];
   if (tokens.length) {
     var first = tokens[0];
     if (/^1-(\d+)$/.test(first)) end = +first.split('-')[1];
     if (first === '1+') end = null;
+    // "Yr 1-6, 7-10": the first rate keeps paying through year 6, later years use the 2nd rate.
+    // "Y1-5" with no 2nd rate: the first rate pays years 1-5.
+    if (end != null && end >= 2 && r1 && String(r1).trim() && (tokens.length > 1 || !rates.length)) {
+      var p1 = parseRate(r1);
+      if (p1.value > 0) lead.push({ from: 2, to: end, rateType: p1.type, rate: p1.value });
+    }
     tokens.slice(1).forEach(function (t) {
       var from, to;
       if (t === '++') { from = (ranges.length ? ranges[ranges.length - 1].to : 1) + 1; to = null; }
@@ -116,12 +122,13 @@ function parseRenewals(payText, r2, r3) {
     });
   }
   // "Flat", "Y1-6", "Yrs 1+" with a renewal rate: the renewal rate covers the rest of the paid years.
-  if (!ranges.length && rates.length) ranges.push({ from: 2, to: tokens.length ? end : null });
+  if (!ranges.length && rates.length && (!tokens.length || end == null || end >= 2)) ranges.push({ from: 2, to: tokens.length ? end : null });
   // Years listed with no rate next to them pay the previous (2nd column) rate.
   // A rate with no years listed (e.g. "Yrs 1, 2-10" with a 3rd column) pays from the year after
   // the last listed years, for as long as the policy is active.
-  var segments = [], unused = false;
-  if (rates.length) {
+  var segments = lead.slice(), unused = false;
+  if (rates.length && !ranges.length && lead.length) unused = true;
+  if (rates.length && ranges.length) {
     ranges.forEach(function (rg, i) {
       var r = rates[Math.min(i, rates.length - 1)];
       if (r.value > 0) segments.push({ from: rg.from, to: rg.to, rateType: r.type, rate: r.value });
@@ -140,7 +147,7 @@ function parseRenewals(payText, r2, r3) {
 function renewalText(segments) {
   if (!segments || !segments.length) return 'No residual on the sheet';
   return segments.map(function (s) {
-    var r = s.rateType === '$' ? '$' + s.rate.toFixed(2) + '/member/mo' : cents(s.rate * 100) + '%';
+    var r = s.rateType === '$' ? '$' + s.rate.toFixed(2) + '/mo' : cents(s.rate * 100) + '%';
     var yrs = s.to == null ? 'yr ' + s.from + '+' : s.from === s.to ? 'yr ' + s.from : 'yrs ' + s.from + '-' + s.to;
     return r + ' ' + yrs;
   }).join(', ');
