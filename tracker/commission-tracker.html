@@ -464,21 +464,27 @@ var RATES = [{"c":"Aetna","g":"Final Expense","n":"ACC Level Benefit and Riders"
   function connect(){
     var c = window.claude;
     if (!c || typeof c.use !== 'function') { useLocal('Sales are only being saved in this browser. Open the tracker on claude.ai to save them to your account.'); return; }
+    // On claude.ai: never fall back to browser storage, or sales saved there would seem to vanish later.
+    var blocked = function(text){ store = null; $('save').disabled = true; banner(text); };
+    $('save').disabled = true;
+    banner('Loading your saved sales…');
     c.use('db').then(function(db){
-      if (!db) { useLocal('Sales are only being saved in this browser. Open the tracker on claude.ai to save them to your account.'); return; }
+      if (!db) { blocked('Could not reach your saved sales, so saving is turned off to keep your records safe. Make sure you are signed in to claude.ai, then reload the page.'); return; }
       var col = db.collection('sales');
       store = {
         add: function(doc){ return col.add(doc); },
         remove: function(id){ return col.doc(id).delete(); },
         put: function(doc){ var body = Object.assign({}, doc); var id = body.id; delete body.id; return col.doc(id).set(body); }
       };
+      var first = true;
       col.onSnapshot(function(snap){
         sales = snap.docs.map(function(d){ var o = Object.assign({}, d.data()); o.id = d.id; return o; });
+        if (first) { first = false; banner(''); $('save').disabled = false; }
         renderAll();
       }, function(err){
-        banner('Could not load your saved sales (' + err.code + '). Reload the page to try again.');
+        blocked('Could not load your saved sales (' + err.code + '). Saving is turned off so nothing gets lost. Reload the page to try again.');
       });
-    }, function(){ useLocal('Sales are only being saved in this browser.'); });
+    }, function(){ blocked('Could not reach your saved sales, so saving is turned off to keep your records safe. Reload the page to try again.'); });
   }
 
   // Totals
