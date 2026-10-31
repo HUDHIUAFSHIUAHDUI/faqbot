@@ -24,6 +24,14 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
 .saved::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
 .saved.off{color:var(--warn)}
 .banner a{color:inherit;font-weight:600}
+.voice{border:1px solid var(--line);border-radius:9px;padding:12px;display:grid;gap:10px;background:rgba(217,180,90,.06)}
+.voice h3{font:700 15px var(--display);letter-spacing:.04em;margin:0;color:var(--accent)}
+.voice textarea{min-height:84px;font:15px/1.45 var(--body)}
+.voice-out{font-size:13px;display:grid;gap:6px}
+.voice-out ul{margin:0;padding-left:18px}
+.voice-out .ok{color:var(--accent)}
+.voice-out .check{color:var(--warn)}
+.filled{outline:2px solid var(--accent);outline-offset:1px}
 .brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:2px 0 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:none;color:var(--muted);padding:6px 10px;font:500 13px var(--body);cursor:pointer}
@@ -180,6 +188,18 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
   <form class="panel" id="sale-form" autocomplete="off">
     <h2 id="form-title">Log a sale</h2>
     <div class="editing" id="editing" hidden><span id="editing-text"></span><button type="button" class="btn link" id="cancel-edit">Cancel editing</button></div>
+    <section class="voice" id="voice" aria-labelledby="voice-title">
+      <h3 id="voice-title">Say the sale</h3>
+      <p class="sub" style="margin:0" id="voice-help">Tap the box, then tap the microphone on your keyboard and say the sale: date, client name, date of birth, phone, email, state, and each product with its carrier, premium and policy number. Then tap Fill in the form. Nothing is saved until you check it and tap Save sale.</p>
+      <textarea id="voice-text" aria-label="What you said" placeholder="e.g. Sold today, effective November 1st. Client is Jane Doe, born May 6 2006, Texas, phone 956 555 0100, email jane@example.com. UHC HealthProtectorGuard 2000 at 76.75, policy 451538657. Accident Pro 56.74…"></textarea>
+      <div class="row" style="align-items:center">
+        <button type="button" class="btn primary" id="voice-go">Fill in the form</button>
+        <button type="button" class="btn" id="voice-stop" hidden>Stop</button>
+        <button type="button" class="btn link" id="voice-clear">Start over</button>
+        <span class="msg" id="voice-msg" role="status"></span>
+      </div>
+      <div class="voice-out" id="voice-out" hidden></div>
+    </section>
     <div class="row">
       <label class="f-date">Sale date<input type="date" id="f-date" required></label>
       <label class="f-date">Effective date<input type="date" id="f-eff"></label>
@@ -642,6 +662,7 @@ var RATES = /*RATES*/;
     ['f-client','f-phone','f-eff','f-renew','f-dob','f-email'].forEach(function(id){ $(id).value = ''; });
     if (editingId) $('f-date').value = ymd(new Date());
     keptLines = []; setEditing(null); addLine();
+    voiceNotes = []; $('voice-out').hidden = true; $('voice-msg').textContent = ''; $('voice-text').value = '';
   }
   // The rate row a saved line came from: same sheet first (lines saved before Q4 have no sheet field).
   function findRate(l){
@@ -722,6 +743,149 @@ var RATES = /*RATES*/;
       msg.textContent = e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old sales to save new ones.' : 'Could not save (' + (e && e.code || 'error') + '). Try again.';
     }).then(function(){ saving = false; $('save').disabled = false; });
   };
+
+
+  // ---- Voice entry: the viewer dictates with their keyboard's microphone; Claude fills the form. ----
+  // The page cannot use the microphone itself, so speech arrives as text typed by the keyboard.
+  // Every round sends ALL notes so far (later notes correct earlier ones) plus what the form shows now,
+  // and Claude returns the whole sale again. The form is filled for review; it never saves by itself.
+  var voiceNotes = [], voiceCtl = null, sampleFn = null;
+  function catalogText(){
+    return RATES.filter(function(r){ return !r.old; }).map(function(r){
+      return [r.id, r.c, r.g, r.n, r.s || 'USA', r.p, rateShown(r)].join(' | ');
+    }).join('\n');
+  }
+  var CATALOG = null;
+  function formSnapshot(){
+    var lines = Array.from($('lines').children).map(function(b){
+      var res = b.read();
+      if (!res) return null;
+      return { id: res.r.id, product: res.r.c + ' ' + res.r.n + (res.r.s ? ' (' + res.r.s + ')' : ''), premium: res.line.premium, policy_number: res.policy || null, members: res.line.members };
+    }).filter(Boolean);
+    return { sale_date: $('f-date').value || null, effective_date: $('f-eff').value || null, renewal_date: $('f-renew').value || null,
+      client_name: $('f-client').value || null, dob: $('f-dob').value || null, phone: $('f-phone').value || null, email: $('f-email').value || null,
+      products: lines };
+  }
+  function voicePrompt(){
+    if (!CATALOG) CATALOG = catalogText();
+    return [
+      'You fill in an insurance sales form from what an insurance agent said out loud. The text came from phone voice dictation, so expect',
+      'misheard words, numbers spoken as words ("seventy six seventy five" = 76.75, "ninety five point eight four" = 95.84),',
+      'and sound-alikes (e.g. "dental wise" = DentalWise, "health guard" or "HPG" = HealthProtectorGuard, "acc pro" = Accident Pro,',
+      '"CG" or "critical guard" = CriticalGuard, "MHL" or "Manhattan" = Manhattan Life, "America" = Americo, "united" = UHC).',
+      '',
+      'Today is ' + ymd(new Date()) + '. Turn relative dates ("today", "yesterday", "first of next month") into YYYY-MM-DD.',
+      '',
+      'AGENT NOTES, oldest first. A later note corrects or adds to earlier ones; when they disagree the later note wins:',
+      voiceNotes.map(function(n, i){ return (i + 1) + '. ' + n; }).join('\n'),
+      '',
+      'WHAT THE FORM SHOWS RIGHT NOW (the agent may have typed fixes by hand; keep these values unless a note changes them):',
+      JSON.stringify(formSnapshot()),
+      '',
+      'PRODUCT CATALOG, one product per line: id | carrier | product group | product | states | pay years | rate.',
+      'Pick each product the agent sold by its id from this list. Rules for picking:',
+      '- Match the carrier and product the agent named. Never invent an id.',
+      '- If rows differ by state, pick the row whose states include the client\'s state; otherwise the USA row.',
+      '- If rows differ by age band, use the client\'s age on the sale date (from the date of birth).',
+      '- CriticalGuard: "25k Plus" unless the agent says under 25k. If two rows still fit equally, pick the USA one and say so in "check".',
+      '- If you cannot tell which product it is, use id null and explain in "check".',
+      CATALOG,
+      '',
+      'Reply with ONLY one JSON object, no other text, in exactly this shape (use null for anything not said):',
+      '{"sale_date":"YYYY-MM-DD"|null,"effective_date":"YYYY-MM-DD"|null,"renewal_date":"YYYY-MM-DD"|null,',
+      ' "client_name":string|null,"dob":"YYYY-MM-DD"|null,"phone":string|null,"email":string|null,"client_state":string|null,',
+      ' "products":[{"id":number|null,"said":"the words the agent used for this product","premium":number|null,"policy_number":string|null,"members":number|null}],',
+      ' "check":["short plain sentence about anything misheard, guessed or missing that the agent should double-check"]}',
+      'Premiums are monthly dollar amounts. Copy policy numbers digit for digit. Keep every product the form already has unless a note removes it.'
+    ].join('\n');
+  }
+  function validDate(v){ return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(parseYmd(v).getTime()) ? v : ''; }
+  function flash(el){ el.classList.add('filled'); setTimeout(function(){ el.classList.remove('filled'); }, 2500); }
+  function setField(id, v){ var el = $(id); var nv = v == null ? '' : String(v); if (el.value !== nv) { el.value = nv; if (nv) flash(el); } }
+  function applyVoice(d){
+    var problems = [];
+    if (!d || typeof d !== 'object' || !Array.isArray(d.products)) throw { code: 'bad_shape' };
+    setField('f-date', validDate(d.sale_date) || $('f-date').value);
+    setField('f-eff', validDate(d.effective_date));
+    setField('f-renew', validDate(d.renewal_date));
+    setField('f-client', d.client_name ? String(d.client_name).slice(0, 80) : '');
+    setField('f-dob', validDate(d.dob));
+    setField('f-phone', d.phone ? String(d.phone).slice(0, 30) : '');
+    setField('f-email', d.email ? String(d.email).slice(0, 120) : '');
+    $('lines').textContent = '';
+    var filled = [];
+    d.products.forEach(function(p){
+      var id = p && p.id != null ? Number(p.id) : NaN;
+      var r = RATES[id];
+      if (!r || r.old || String(id) !== String(p.id).trim()) {
+        problems.push('Could not match "' + (p && p.said || 'a product') + '" to the Q4 sheet. Pick it below by hand.');
+        return;
+      }
+      var box = addLine(); box.pickRate(id);
+      var n = $('lines').lastElementChild;
+      var prem = Number(p.premium);
+      var inputs = n.querySelectorAll('input');
+      var m = n.querySelector('input[id^="m"]'), pol = n.querySelector('input[id^="pol"]'), mem = n.querySelector('input[id^="mem"]');
+      if (isFinite(prem) && prem >= 0 && p.premium !== null) { m.value = String(prem); flash(m); } else problems.push('No premium heard for ' + r.c + ' ' + r.n + '.');
+      if (p.policy_number) { pol.value = String(p.policy_number).slice(0, 40); flash(pol); }
+      if (mem && p.members && Number(p.members) >= 1) mem.value = String(Math.round(Number(p.members)));
+      filled.push(r.c + ' · ' + r.n + (r.s && r.s !== 'USA' ? ' (' + r.s + ')' : '') + ' — ' + rateShown(r) + (isFinite(prem) && p.premium !== null ? ', $' + prem.toFixed(2) + '/mo' : ''));
+    });
+    if (!$('lines').children.length) addLine();
+    update();
+    var checks = (Array.isArray(d.check) ? d.check : []).map(String).filter(Boolean).concat(problems);
+    var out = $('voice-out'); out.textContent = ''; out.hidden = false;
+    var h = document.createElement('div'); h.className = 'ok';
+    h.textContent = 'Filled in ' + filled.length + ' product' + (filled.length === 1 ? '' : 's') + (d.client_name ? ' for ' + d.client_name : '') + '. Check the highlighted boxes, then tap Save sale.';
+    out.appendChild(h);
+    if (filled.length) { var ul = document.createElement('ul'); filled.forEach(function(t){ var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }); out.appendChild(ul); }
+    if (checks.length) {
+      var c = document.createElement('div'); c.className = 'check'; c.textContent = 'Double-check:'; out.appendChild(c);
+      var ul2 = document.createElement('ul'); ul2.className = 'check';
+      checks.slice(0, 12).forEach(function(t){ var li = document.createElement('li'); li.textContent = t; ul2.appendChild(li); });
+      out.appendChild(ul2);
+    }
+    var more = document.createElement('div'); more.textContent = 'Anything wrong? Say the fix in the box above (e.g. "the dental premium is 40.04") and tap Fill in the form again.'; out.appendChild(more);
+  }
+  var VOICE_ERRORS = {
+    not_granted: 'Voice entry needs permission to use Claude. Reload and allow it to use this.',
+    sampling_disabled: 'Claude is not available on this account, so voice entry is off.',
+    rate_limited: 'Too many requests right now. Wait a minute and tap Fill in the form again.',
+    session_expired: 'Sign in to claude.ai again, then try again.',
+    invalid_json: 'Claude’s answer could not be read. Tap Fill in the form again.',
+    refused: 'Claude would not process that text. Reword it and try again.',
+    bad_shape: 'Claude’s answer was incomplete. Tap Fill in the form again.'
+  };
+  $('voice-go').onclick = function(){
+    var said = $('voice-text').value.trim();
+    var msg = $('voice-msg'); msg.className = 'msg';
+    if (!said) { msg.className = 'msg err'; msg.textContent = 'Say or type the sale in the box first.'; return; }
+    if (!sampleFn) { msg.className = 'msg err'; msg.textContent = 'Voice entry only works on the tracker website.'; return; }
+    voiceNotes.push(said);
+    voiceCtl = new AbortController();
+    $('voice-go').disabled = true; $('voice-stop').hidden = false; msg.textContent = 'Reading what you said… this can take up to a minute.';
+    sampleFn.json(voicePrompt(), { signal: voiceCtl.signal, cache: false, modelTier: 'default' }).then(function(d){
+      applyVoice(d);
+      $('voice-text').value = '';
+      msg.textContent = 'Done. Check the form below.';
+    }, function(e){
+      voiceNotes.pop();
+      if (e && e.code === 'cancelled') { msg.textContent = 'Stopped.'; return; }
+      msg.className = 'msg err';
+      msg.textContent = VOICE_ERRORS[e && e.code] || 'Something went wrong reading that. Tap Fill in the form again.';
+    }).then(function(){ $('voice-go').disabled = false; $('voice-stop').hidden = true; voiceCtl = null; });
+  };
+  $('voice-stop').onclick = function(){ if (voiceCtl) voiceCtl.abort(); };
+  $('voice-clear').onclick = function(){
+    if (voiceCtl) voiceCtl.abort();
+    voiceNotes = []; $('voice-text').value = ''; $('voice-out').hidden = true; $('voice-msg').textContent = '';
+    resetForm();
+  };
+  (function(){
+    var c = window.claude;
+    if (!c || typeof c.use !== 'function') { $('voice').hidden = true; return; }
+    c.use('sample').then(function(fn){ if (fn && typeof fn.json === 'function') sampleFn = fn; else $('voice').hidden = true; }, function(){ $('voice').hidden = true; });
+  })();
 
   $('f-date').value = ymd(new Date());
   setWeekStart(weekStart);
