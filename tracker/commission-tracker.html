@@ -153,25 +153,36 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
 
   <section class="page" id="page-pay" role="tabpanel" aria-labelledby="tab-pay" hidden>
     <div class="page-head">
-      <p>What you actually make. Each premium your client pays earns one month of commission. The first ones pay back your advance; after that the commission is paid to you each month until the policy's first year is done. As of <b id="pay-today"></b>.</p>
+      <p>What you actually make, and which Tuesday it lands. Each premium your client pays earns one month of commission. Your advance is paid the Tuesday after the first premium (effective date); the next premiums pay it back, then each one is paid to you the Tuesday after it drafts. As of <b id="pay-today"></b>.</p>
     </div>
     <section class="stats three" aria-label="Pay totals">
+      <div class="stat"><span class="label">Next payday</span><span class="big" id="p-next">$0.00</span><span class="range" id="p-next-date">Tuesday</span></div>
       <div class="stat"><span class="label">Earned so far</span><span class="big" id="p-earned">$0.00</span><span class="range">Commission your clients' payments have actually earned</span></div>
       <div class="stat"><span class="label">Advance not paid off yet</span><span class="big warn" id="p-owed">$0.00</span><span class="range">Advance money clients haven't paid back yet. If a policy cancels, this is what can be taken back.</span></div>
-      <div class="stat"><span class="label">Paid to you so far</span><span class="big ink" id="p-paid">$0.00</span><span class="range">Advances, monthly payouts and residuals up to today</span></div>
-      <div class="stat"><span class="label">Still coming to you</span><span class="big ink" id="p-coming">$0.00</span><span class="range">First-year payouts after advances are paid off</span></div>
-      <div class="stat"><span class="label">Residuals this month</span><span class="big" id="p-resnow">$0.00</span><span class="range">Renewal commission from policies past their first year</span></div>
-      <div class="stat"><span class="label">Residuals paid so far</span><span class="big ink" id="p-respaid">$0.00</span><span class="range">All renewal commission up to today</span></div>
+      <div class="stat"><span class="label">Paid to you so far</span><span class="big ink" id="p-paid">$0.00</span><span class="range">Advances, payouts and residuals paid up to today, after any charge-backs</span></div>
+      <div class="stat"><span class="label">Still coming to you</span><span class="big ink" id="p-coming">$0.00</span><span class="range">First-year advances and payouts not paid to you yet</span></div>
+      <div class="stat"><span class="label">Residuals this month</span><span class="big" id="p-resnow">$0.00</span><span class="range">Renewal commission paid on this month's Tuesdays</span></div>
+    </section>
+    <section class="panel">
+      <h2>Paydays</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Tuesday</th><th class="r">Advances</th><th class="r">Monthly payouts</th><th class="r">Residuals</th><th class="r">Charge-backs</th><th class="r">Total paid to you</th></tr></thead>
+          <tbody id="payday-body"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="payday-empty">No paydays yet. Log a sale to see which Tuesdays you get paid.</p>
+      <p class="sub">Your last 4 paydays and every upcoming one with money in it. Assumes each client pays on schedule until you set a Cancelled on date.</p>
     </section>
     <section class="panel">
       <h2>Month by month</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Month</th><th class="r">Advances paid</th><th class="r">Monthly payouts</th><th class="r">Residuals</th><th class="r">Total paid to you</th><th class="r">Earned by client payments</th><th class="r">Advance owed at month end</th></tr></thead>
+          <thead><tr><th>Month</th><th class="r">Advances paid</th><th class="r">Monthly payouts</th><th class="r">Residuals</th><th class="r">Charge-backs</th><th class="r">Total paid to you</th><th class="r">Earned by client payments</th><th class="r">Advance owed at month end</th></tr></thead>
           <tbody id="month-body"></tbody>
         </table>
       </div>
-      <p class="sub" id="month-note">Shows every month with pay, through 24 months from now. Residuals assume the client keeps paying.</p>
+      <p class="sub" id="month-note">Money is counted in the month of the Tuesday it is paid. Earned and advance owed follow the premium draft dates. Shows 24 months ahead.</p>
       <p class="empty" id="month-empty">Log a sale to see your pay month by month.</p>
     </section>
     <section class="panel">
@@ -204,6 +215,7 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
       <label class="f-date">Sale date<input type="date" id="f-date" required></label>
       <label class="f-date">Effective date<input type="date" id="f-eff"></label>
       <label class="f-date">Renewal date<input type="date" id="f-renew"></label>
+      <label class="f-date">Cancelled on<input type="date" id="f-cancel"></label>
     </div>
     <div class="row">
       <label class="f-client">Client name<input type="text" id="f-client" maxlength="80"></label>
@@ -244,7 +256,7 @@ tr.detail td{color:var(--muted);font-size:12.5px;padding-top:0;border-bottom-sty
 
 
   <section class="rules">
-    <p><b>Savings page.</b> The advance is paid in the month of the sale. The client's first premium is due on the effective date (the sale date if you leave it blank), then one a month. Payouts after the advance is paid off are shown in the month the client pays; the carrier may pay a few days or weeks later. Cancelled policies are not removed automatically, so delete a sale if it cancels.</p>
+    <p><b>Savings page.</b> You are paid on Tuesdays. The client's first premium drafts on the effective date (the sale date if you leave it blank), then one a month. Your advance is paid the Tuesday after the first premium; anything earned later (payouts once the advance is paid off, residuals) is paid the Tuesday after that premium drafts. Something on a Tuesday is paid the following Tuesday. If a client stops paying, set Cancelled on to the first premium they missed: nothing is paid after that, and any advance they had not paid back yet is charged back the Tuesday after.</p>
     <p><b>Residuals.</b> From the renewal date on, each premium the client pays earns the sheet's renewal rate (the 2nd and 3rd rate columns, for the years in Pay Years), paid monthly. $ renewal rates are that $ amount per month. Products with no renewal rate on the sheet pay no residual.</p>
     <p><b>How commission is counted.</b> % rates: AV × your Associate rate × advance months ÷ 12, where AV = monthly premium × 12. $ rates: $ × advance months, per policy (ACA PMPM plans: × members on the plan). Products with no advance months listed (ACA) count 1 month. One-time products (annuity deposits): premium × rate.</p>
     <p>New sales use the Q4 2026 Meda commission schedule; sales saved earlier keep the rates they were saved with. Flat-dollar plans pay per policy, not per person. You can change the rate or months on any line before saving if a number is different on your statement.</p>
@@ -318,29 +330,51 @@ function addMonths(ymd, n) {
   return y + '-' + String(m).padStart(2, '0') + '-' + String(Math.min(+p[2], last)).padStart(2, '0');
 }
 
+// The Tuesday money for something that happened on `ymd` is paid: the next Tuesday strictly
+// after it (something on a Tuesday is paid the following Tuesday).
+function nextTuesday(ymd) {
+  var p = ymd.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var add = (2 - d.getDay() + 7) % 7;
+  if (add === 0) add = 7;
+  d.setDate(d.getDate() + add);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // How one product line pays out over its first year.
-// The advance is paid in the sale month. The client's k-th premium (k = 1..12) is due
-// k-1 months after the effective date and earns one month of commission. The first
-// `advanceMonths` premiums pay back the advance; each later premium is paid out to you.
-// Returns events: {date, advancePaid, earnedPaid, earned, balance} where balance is the
-// advance still unpaid after that event. Totals add up to fullYear exactly.
-function lineSchedule(res, saleDate, effDate) {
+// The client's k-th premium (k = 1..12) drafts k-1 months after the effective date and earns one
+// month of commission. Premiums are assumed paid on schedule until `cancelDate` (the first premium
+// the client did NOT pay; empty = still active).
+// - The advance is paid the Tuesday after the first premium is paid (the effective date).
+// - The first `advanceMonths` premiums pay the advance back; each later premium is paid out to you
+//   the Tuesday after it drafts.
+// - If the policy cancels while part of the advance is still unearned, that part is charged back
+//   the Tuesday after the cancel date.
+// Returns events: {date, payDate, advancePaid, earnedPaid, chargeback, earned, balance}. `date` is when
+// it is earned (draft date), `payDate` the Tuesday the cash moves, `balance` the advance still owed after
+// it. With no cancellation, advancePaid + earnedPaid add up to fullYear exactly.
+function lineSchedule(res, saleDate, effDate, cancelDate) {
   var events = [];
   var advance = res.commission, full = res.fullYear;
-  if (!res.monthly) { // one-time product: all paid and earned at the sale
-    events.push({ date: saleDate, advancePaid: full, earnedPaid: 0, earned: full, balance: 0 });
+  var cancelled = function (d) { return !!cancelDate && d >= cancelDate; };
+  if (cancelled(effDate)) return events; // the first premium was never paid: nothing is paid
+  if (!res.monthly) { // one-time product: paid and earned in full with the first payment
+    events.push({ date: effDate, payDate: nextTuesday(effDate), advancePaid: full, earnedPaid: 0, chargeback: 0, earned: full, balance: 0 });
     return events;
   }
-  events.push({ date: saleDate, advancePaid: advance, earnedPaid: 0, earned: 0, balance: advance });
-  var earnedSum = 0, paidSum = advance;
+  events.push({ date: effDate, payDate: nextTuesday(effDate), advancePaid: advance, earnedPaid: 0, chargeback: 0, earned: 0, balance: advance });
+  var earnedSum = 0, paidSum = advance, balance = advance;
   for (var k = 1; k <= 12; k++) {
+    var draft = addMonths(effDate, k - 1);
+    if (cancelled(draft)) {
+      if (balance > 0) events.push({ date: cancelDate, payDate: nextTuesday(cancelDate), advancePaid: 0, earnedPaid: 0, chargeback: -balance, earned: 0, balance: 0 });
+      break;
+    }
     var earned = k === 12 ? cents(full - earnedSum) : cents(res.monthly);
     earnedSum = cents(earnedSum + earned);
     var paid = 0;
     if (k > res.advanceMonths) { paid = k === 12 ? cents(full - paidSum) : cents(res.monthly); paidSum = cents(paidSum + paid); }
-    var balance = Math.max(0, cents(advance - earnedSum));
-    if (k >= res.advanceMonths) balance = 0;
-    events.push({ date: addMonths(effDate, k - 1), advancePaid: 0, earnedPaid: paid, earned: earned, balance: balance });
+    balance = k >= res.advanceMonths ? 0 : Math.max(0, cents(advance - earnedSum));
+    events.push({ date: draft, payDate: nextTuesday(draft), advancePaid: 0, earnedPaid: paid, chargeback: 0, earned: earned, balance: balance });
   }
   return events;
 }
@@ -407,9 +441,9 @@ function renewalText(segments) {
   }).join(', ');
 }
 
-// Residual paid each month from the renewal date (start of policy year 2) up to and
-// including the month `untilYmd`. line: {premium, members, payType}; segments from parseRenewals.
-function residualSchedule(line, segments, renewalDate, untilYmd) {
+// Residual earned each month from the renewal date (start of policy year 2) up to and
+// including the month `untilYmd`, paid the Tuesday after each premium drafts; stops at `cancelDate`. line: {premium, members, payType}; segments from parseRenewals.
+function residualSchedule(line, segments, renewalDate, untilYmd, cancelDate) {
   var out = [];
   if (!segments || !segments.length || line.payType === 'One-time') return out;
   var premium = Number(line.premium) || 0, members = Number(line.members) || 1;
@@ -417,6 +451,7 @@ function residualSchedule(line, segments, renewalDate, untilYmd) {
   for (var j = 0; j < 1200; j++) {
     var date = addMonths(renewalDate, j);
     if (monthIndex(date) > stop) break;
+    if (cancelDate && date >= cancelDate) break; // the client stopped paying
     var year = 2 + Math.floor(j / 12), seg = null;
     for (var i = 0; i < segments.length; i++) {
       var s = segments[i];
@@ -428,13 +463,13 @@ function residualSchedule(line, segments, renewalDate, untilYmd) {
       continue;
     }
     var amt = seg.rateType === '$' ? seg.rate * members : premium * seg.rate;
-    out.push({ date: date, year: year, residual: cents(amt) });
+    out.push({ date: date, payDate: nextTuesday(date), year: year, residual: cents(amt) });
   }
   return out;
 }
 
 if (typeof module !== 'undefined') module.exports = { parseRate: parseRate, defaultMonths: defaultMonths, calcLine: calcLine, cents: cents,
-  lineSchedule: lineSchedule, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey,
+  lineSchedule: lineSchedule, nextTuesday: nextTuesday, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey,
   parseRenewals: parseRenewals, renewalText: renewalText, residualSchedule: residualSchedule };
 
 </script>
@@ -552,7 +587,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
       var who = td(s.client || (s.lines.length + ' product' + (s.lines.length === 1 ? '' : 's')));
       var extra = [];
       if (s.phone) extra.push(s.phone);
-      extra.push('Renews ' + niceDate(renewalOf(s)));
+      extra.push(s.cancelDate ? 'Cancelled ' + niceDate(s.cancelDate) : 'Renews ' + niceDate(renewalOf(s)));
       var sm = document.createElement('div'); sm.className = 'resid'; sm.textContent = extra.join(' · '); who.appendChild(sm);
       td(fmt(s.av), 'r num'); td(fmt(s.commission), 'r num');
       var act = td('', 'r');
@@ -586,6 +621,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
     var body = $('renew-body'); body.textContent = '';
     var list = [];
     sales.forEach(function(s){
+      if (s.cancelDate) return;
       var r = renewalOf(s), guard = 0;
       while (r < today && guard++ < 60) r = addMonths(r, 12);
       if (r <= until) list.push({ s: s, r: r });
@@ -607,70 +643,95 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
   function renderPay(){
     var today = ymd(new Date()), nowIdx = monthIndex(today);
     $('pay-today').textContent = niceDate(today);
-    var months = {}, tot = { earned:0, owed:0, paid:0, coming:0, resNow:0, resPaid:0 };
+    var months = {}, days = {}, tot = { earned:0, owed:0, paid:0, coming:0, resNow:0 };
     var horizon = ymd(new Date(new Date().getFullYear(), new Date().getMonth() + 25, 0));
-    var mget = function(mi){ return months[mi] || (months[mi] = { adv:0, out:0, res:0, earned:0, bal:{} }); };
+    var mget = function(mi){ return months[mi] || (months[mi] = { adv:0, out:0, res:0, cb:0, earned:0, bal:{} }); };
+    var dget = function(d){ return days[d] || (days[d] = { adv:0, out:0, res:0, cb:0 }); };
+    // cash lands on a Tuesday: count it in that payday and in that payday's month
+    var cash = function(payDate, kind, amt){
+      if (!amt) return;
+      dget(payDate)[kind] += amt; mget(monthIndex(payDate))[kind] += amt;
+      if (payDate <= today) tot.paid += amt; else if (kind !== 'res') tot.coming += amt;
+    };
     var each = $('each-body'); each.textContent = '';
     var list = sales.slice().sort(function(a,b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
     list.forEach(function(s){
-      var eff = s.effDate || s.date;
-      var row = { full:0, adv:0, earned:0, owed:0, monthly:0, startIdx:null, resFirst:{}, resIdx:null };
+      var eff = s.effDate || s.date, cancel = s.cancelDate || '';
+      var row = { full:0, adv:0, earned:0, owed:0, monthly:0, startDate:null, resFirst:0, resDate:null };
       s.lines.forEach(function(l){
         var res = lineResult(l);
-        var ev = lineSchedule(res, s.date, eff);
+        var ev = lineSchedule(res, s.date, eff, cancel);
         row.full += res.fullYear; row.adv += res.commission;
-        if (res.monthly && res.advanceMonths < 12) {
+        if (res.monthly && res.advanceMonths < 12 && !cancel) {
           row.monthly += res.monthly;
-          var st = monthIndex(addMonths(eff, res.advanceMonths));
-          row.startIdx = row.startIdx == null ? st : Math.min(row.startIdx, st);
+          var st = nextTuesday(addMonths(eff, res.advanceMonths));
+          row.startDate = row.startDate == null || st < row.startDate ? st : row.startDate;
         }
-        var lastBal = 0, lastBalSet = false;
+        var lastBal = 0;
         ev.forEach(function(e){
-          var mi = monthIndex(e.date);
-          var m = mget(mi);
-          m.adv += e.advancePaid; m.out += e.earnedPaid; m.earned += e.earned;
-          if (e.date <= today) {
-            row.earned += e.earned; tot.paid += e.advancePaid + e.earnedPaid;
-            lastBal = e.balance; lastBalSet = true;
-          } else {
-            tot.coming += e.advancePaid + e.earnedPaid;
-          }
+          cash(e.payDate, 'adv', e.advancePaid); cash(e.payDate, 'out', e.earnedPaid); cash(e.payDate, 'cb', e.chargeback);
+          mget(monthIndex(e.date)).earned += e.earned;
+          if (e.date <= today) { row.earned += e.earned; lastBal = e.balance; }
         });
-        if (lastBalSet) row.owed += lastBal;
+        row.owed += lastBal;
         var segs = lineSegs(l);
         if (segs.length && l.payYears !== 'One-time') {
-          var rs = residualSchedule({ premium: l.premium, members: l.members, payType: l.payYears }, segs, renewalOf(s), horizon);
+          var rs = residualSchedule({ premium: l.premium, members: l.members, payType: l.payYears }, segs, renewalOf(s), horizon, cancel);
           rs.forEach(function(e){
-            var mi3 = monthIndex(e.date);
-            mget(mi3).res += e.residual;
-            if (e.date <= today) tot.resPaid += e.residual;
-            if (mi3 === nowIdx) tot.resNow += e.residual;
+            cash(e.payDate, 'res', e.residual);
+            mget(monthIndex(e.date)).earned += e.residual;
+            if (e.date <= today) row.earned += e.residual;
+            if (monthIndex(e.payDate) === nowIdx) tot.resNow += e.residual;
           });
-          if (rs.length) {
-            var fi = monthIndex(rs[0].date);
-            row.resFirst[fi] = (row.resFirst[fi] || 0) + rs[0].residual;
-            row.resIdx = row.resIdx == null ? fi : Math.min(row.resIdx, fi);
+          if (rs.length && (row.resDate == null || rs[0].payDate <= row.resDate)) {
+            if (row.resDate !== rs[0].payDate) row.resFirst = 0;
+            row.resDate = rs[0].payDate; row.resFirst += rs[0].residual;
           }
         }
-        // advance still owed at the end of each month for this line
-        var bal = 0, evIdx = 0, first = monthIndex(ev[0].date), last = monthIndex(ev[ev.length-1].date);
-        for (var mi2 = first; mi2 <= last; mi2++) {
-          while (evIdx < ev.length && monthIndex(ev[evIdx].date) <= mi2) { bal = ev[evIdx].balance; evIdx++; }
-          var mm = mget(mi2);
-          mm.bal[s.id + ':' + l.product] = bal;
+        // advance still owed at the end of each month (by draft date) for this line
+        if (ev.length) {
+          var bal = 0, evIdx = 0, first = monthIndex(ev[0].date), last = monthIndex(ev[ev.length-1].date);
+          for (var mi2 = first; mi2 <= last; mi2++) {
+            while (evIdx < ev.length && monthIndex(ev[evIdx].date) <= mi2) { bal = ev[evIdx].balance; evIdx++; }
+            mget(mi2).bal[s.id + ':' + l.product + ':' + l.policy] = bal;
+          }
         }
       });
       tot.earned += row.earned; tot.owed += row.owed;
       var tr = document.createElement('tr');
-      var cells = [niceDate(s.date) + (s.client ? ' · ' + s.client : ''), fmt(cents(row.full)), fmt(cents(row.adv)), fmt(cents(row.earned)), fmt(cents(row.owed)),
-        row.monthly ? fmt(cents(row.monthly)) + '/mo from ' + monthName(row.startIdx) : 'Paid in full up front',
-        row.resIdx != null ? fmt(cents(row.resFirst[row.resIdx])) + '/mo from ' + monthName(row.resIdx) : 'None on the sheet'];
+      var cells = [niceDate(s.date) + (s.client ? ' · ' + s.client : '') + (cancel ? ' (cancelled ' + niceDate(cancel) + ')' : ''),
+        fmt(cents(row.full)), fmt(cents(row.adv)), fmt(cents(row.earned)), fmt(cents(row.owed)),
+        cancel ? 'Cancelled' : row.monthly ? fmt(cents(row.monthly)) + '/mo from ' + niceDate(row.startDate) : 'Paid in full up front',
+        cancel ? '—' : row.resDate ? fmt(cents(row.resFirst)) + '/mo from ' + niceDate(row.resDate) : 'None on the sheet'];
       cells.forEach(function(t, i){ var e = document.createElement('td'); e.textContent = t; if (i >= 1 && i <= 4) e.className = 'r num'; tr.appendChild(e); });
       each.appendChild(tr);
     });
     $('p-earned').textContent = fmt(cents(tot.earned)); $('p-owed').textContent = fmt(cents(tot.owed));
-    $('p-paid').textContent = fmt(cents(tot.paid + tot.resPaid)); $('p-coming').textContent = fmt(cents(tot.coming));
-    $('p-resnow').textContent = fmt(cents(tot.resNow)); $('p-respaid').textContent = fmt(cents(tot.resPaid));
+    $('p-paid').textContent = fmt(cents(tot.paid)); $('p-coming').textContent = fmt(cents(tot.coming));
+    $('p-resnow').textContent = fmt(cents(tot.resNow));
+
+    // Paydays: the last 4 that paid anything and every upcoming one
+    var dayKeys = Object.keys(days).filter(function(d){ var x = days[d]; return cents(x.adv + x.out + x.res + x.cb) !== 0 || x.cb; }).sort();
+    var past = dayKeys.filter(function(d){ return d <= today; }).slice(-4), future = dayKeys.filter(function(d){ return d > today; });
+    var nextDay = nextTuesday(ymd(new Date(Date.now() - 864e5))); // today if today is Tuesday, else the coming Tuesday
+    var nd = days[nextDay];
+    $('p-next').textContent = fmt(nd ? cents(nd.adv + nd.out + nd.res + nd.cb) : 0);
+    $('p-next-date').textContent = 'Tuesday ' + niceDate(nextDay) + (nextDay === today ? ' (today)' : '');
+    var pb = $('payday-body'); pb.textContent = '';
+    var shown = past.concat(future);
+    $('payday-empty').hidden = shown.length > 0;
+    shown.forEach(function(d){
+      var x = days[d], tr = document.createElement('tr');
+      if (d === nextDay) tr.className = 'now';
+      var cells = ['Tue ' + niceDate(d) + (d === nextDay ? ' (next)' : d <= today ? ' (paid)' : ''), x.adv, x.out, x.res, x.cb, x.adv + x.out + x.res + x.cb];
+      cells.forEach(function(v, i){
+        var e = document.createElement('td');
+        if (i === 0) e.textContent = v; else { e.textContent = fmt(cents(v)); e.className = 'r num' + (cents(v) === 0 ? ' zero' : ''); }
+        tr.appendChild(e);
+      });
+      pb.appendChild(tr);
+    });
+
     var body = $('month-body'); body.textContent = '';
     var keys = Object.keys(months).map(Number).sort(function(a,b){ return a-b; });
     $('month-empty').hidden = keys.length > 0;
@@ -678,7 +739,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
       var m = months[k], bal = 0;
       Object.keys(m.bal).forEach(function(id){ bal += m.bal[id]; });
       var tr = document.createElement('tr'); if (k === nowIdx) tr.className = 'now';
-      var cells = [monthName(k) + (k === nowIdx ? ' (this month)' : ''), m.adv, m.out, m.res, m.adv + m.out + m.res, m.earned + m.res, bal];
+      var cells = [monthName(k) + (k === nowIdx ? ' (this month)' : ''), m.adv, m.out, m.res, m.cb, m.adv + m.out + m.res + m.cb, m.earned, bal];
       cells.forEach(function(v, i){
         var e = document.createElement('td');
         if (i === 0) e.textContent = v; else { e.textContent = fmt(cents(v)); e.className = 'r num' + (cents(v) === 0 ? ' zero' : ''); }
@@ -843,7 +904,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
   }
   function resetForm(){
     $('lines').textContent = '';
-    ['f-client','f-phone','f-eff','f-renew','f-dob','f-email'].forEach(function(id){ $(id).value = ''; });
+    ['f-client','f-phone','f-eff','f-renew','f-dob','f-email','f-cancel'].forEach(function(id){ $(id).value = ''; });
     if (editingId) $('f-date').value = ymd(new Date());
     keptLines = []; setEditing(null); addLine();
     voiceNotes = []; $('voice-out').hidden = true; $('voice-msg').textContent = ''; $('voice-text').value = '';
@@ -865,7 +926,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
     $('lines').textContent = '';
     $('f-date').value = s.date; $('f-eff').value = s.effDate || ''; $('f-renew').value = s.renewalDate || '';
     $('f-client').value = s.client || ''; $('f-phone').value = s.phone || '';
-    $('f-dob').value = s.dob || ''; $('f-email').value = s.email || '';
+    $('f-dob').value = s.dob || ''; $('f-email').value = s.email || ''; $('f-cancel').value = s.cancelDate || '';
     keptLines = [];
     s.lines.forEach(function(l){
       var idx = findRate(l);
@@ -913,6 +974,7 @@ var RATES = [{"c":"Aetna","g":"Medicare Advantage","n":"New Enroll Medicare Adva
     var doc = {
       date: date, effDate: $('f-eff').value || '', renewalDate: $('f-renew').value || '',
       client: $('f-client').value.trim(), phone: $('f-phone').value.trim(), dob: $('f-dob').value || '', email: $('f-email').value.trim(),
+      cancelDate: $('f-cancel').value || '',
       lines: lines, createdAt: Date.now(),
       av: cents(lines.reduce(function(t,l){ return t + l.av; }, 0)),
       commission: cents(lines.reduce(function(t,l){ return t + l.commission; }, 0))

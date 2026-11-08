@@ -64,29 +64,51 @@ function addMonths(ymd, n) {
   return y + '-' + String(m).padStart(2, '0') + '-' + String(Math.min(+p[2], last)).padStart(2, '0');
 }
 
+// The Tuesday money for something that happened on `ymd` is paid: the next Tuesday strictly
+// after it (something on a Tuesday is paid the following Tuesday).
+function nextTuesday(ymd) {
+  var p = ymd.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var add = (2 - d.getDay() + 7) % 7;
+  if (add === 0) add = 7;
+  d.setDate(d.getDate() + add);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // How one product line pays out over its first year.
-// The advance is paid in the sale month. The client's k-th premium (k = 1..12) is due
-// k-1 months after the effective date and earns one month of commission. The first
-// `advanceMonths` premiums pay back the advance; each later premium is paid out to you.
-// Returns events: {date, advancePaid, earnedPaid, earned, balance} where balance is the
-// advance still unpaid after that event. Totals add up to fullYear exactly.
-function lineSchedule(res, saleDate, effDate) {
+// The client's k-th premium (k = 1..12) drafts k-1 months after the effective date and earns one
+// month of commission. Premiums are assumed paid on schedule until `cancelDate` (the first premium
+// the client did NOT pay; empty = still active).
+// - The advance is paid the Tuesday after the first premium is paid (the effective date).
+// - The first `advanceMonths` premiums pay the advance back; each later premium is paid out to you
+//   the Tuesday after it drafts.
+// - If the policy cancels while part of the advance is still unearned, that part is charged back
+//   the Tuesday after the cancel date.
+// Returns events: {date, payDate, advancePaid, earnedPaid, chargeback, earned, balance}. `date` is when
+// it is earned (draft date), `payDate` the Tuesday the cash moves, `balance` the advance still owed after
+// it. With no cancellation, advancePaid + earnedPaid add up to fullYear exactly.
+function lineSchedule(res, saleDate, effDate, cancelDate) {
   var events = [];
   var advance = res.commission, full = res.fullYear;
-  if (!res.monthly) { // one-time product: all paid and earned at the sale
-    events.push({ date: saleDate, advancePaid: full, earnedPaid: 0, earned: full, balance: 0 });
+  var cancelled = function (d) { return !!cancelDate && d >= cancelDate; };
+  if (cancelled(effDate)) return events; // the first premium was never paid: nothing is paid
+  if (!res.monthly) { // one-time product: paid and earned in full with the first payment
+    events.push({ date: effDate, payDate: nextTuesday(effDate), advancePaid: full, earnedPaid: 0, chargeback: 0, earned: full, balance: 0 });
     return events;
   }
-  events.push({ date: saleDate, advancePaid: advance, earnedPaid: 0, earned: 0, balance: advance });
-  var earnedSum = 0, paidSum = advance;
+  events.push({ date: effDate, payDate: nextTuesday(effDate), advancePaid: advance, earnedPaid: 0, chargeback: 0, earned: 0, balance: advance });
+  var earnedSum = 0, paidSum = advance, balance = advance;
   for (var k = 1; k <= 12; k++) {
+    var draft = addMonths(effDate, k - 1);
+    if (cancelled(draft)) {
+      if (balance > 0) events.push({ date: cancelDate, payDate: nextTuesday(cancelDate), advancePaid: 0, earnedPaid: 0, chargeback: -balance, earned: 0, balance: 0 });
+      break;
+    }
     var earned = k === 12 ? cents(full - earnedSum) : cents(res.monthly);
     earnedSum = cents(earnedSum + earned);
     var paid = 0;
     if (k > res.advanceMonths) { paid = k === 12 ? cents(full - paidSum) : cents(res.monthly); paidSum = cents(paidSum + paid); }
-    var balance = Math.max(0, cents(advance - earnedSum));
-    if (k >= res.advanceMonths) balance = 0;
-    events.push({ date: addMonths(effDate, k - 1), advancePaid: 0, earnedPaid: paid, earned: earned, balance: balance });
+    balance = k >= res.advanceMonths ? 0 : Math.max(0, cents(advance - earnedSum));
+    events.push({ date: draft, payDate: nextTuesday(draft), advancePaid: 0, earnedPaid: paid, chargeback: 0, earned: earned, balance: balance });
   }
   return events;
 }
@@ -153,9 +175,9 @@ function renewalText(segments) {
   }).join(', ');
 }
 
-// Residual paid each month from the renewal date (start of policy year 2) up to and
-// including the month `untilYmd`. line: {premium, members, payType}; segments from parseRenewals.
-function residualSchedule(line, segments, renewalDate, untilYmd) {
+// Residual earned each month from the renewal date (start of policy year 2) up to and
+// including the month `untilYmd`, paid the Tuesday after each premium drafts; stops at `cancelDate`. line: {premium, members, payType}; segments from parseRenewals.
+function residualSchedule(line, segments, renewalDate, untilYmd, cancelDate) {
   var out = [];
   if (!segments || !segments.length || line.payType === 'One-time') return out;
   var premium = Number(line.premium) || 0, members = Number(line.members) || 1;
@@ -163,6 +185,7 @@ function residualSchedule(line, segments, renewalDate, untilYmd) {
   for (var j = 0; j < 1200; j++) {
     var date = addMonths(renewalDate, j);
     if (monthIndex(date) > stop) break;
+    if (cancelDate && date >= cancelDate) break; // the client stopped paying
     var year = 2 + Math.floor(j / 12), seg = null;
     for (var i = 0; i < segments.length; i++) {
       var s = segments[i];
@@ -174,11 +197,11 @@ function residualSchedule(line, segments, renewalDate, untilYmd) {
       continue;
     }
     var amt = seg.rateType === '$' ? seg.rate * members : premium * seg.rate;
-    out.push({ date: date, year: year, residual: cents(amt) });
+    out.push({ date: date, payDate: nextTuesday(date), year: year, residual: cents(amt) });
   }
   return out;
 }
 
 if (typeof module !== 'undefined') module.exports = { parseRate: parseRate, defaultMonths: defaultMonths, calcLine: calcLine, cents: cents,
-  lineSchedule: lineSchedule, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey,
+  lineSchedule: lineSchedule, nextTuesday: nextTuesday, addMonths: addMonths, monthIndex: monthIndex, monthKey: monthKey,
   parseRenewals: parseRenewals, renewalText: renewalText, residualSchedule: residualSchedule };
