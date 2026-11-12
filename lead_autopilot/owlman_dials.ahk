@@ -45,6 +45,7 @@ global MinContactMs := 10500    ; never No Contact sooner than this after the ca
 global LongEveryMin := 10, LongEveryMax := 15     ; a long dial happens every 10-15 dials
 global DialsUntilLong := Random(LongEveryMin, LongEveryMax)
 global NextCallWait  := 15000   ; ms to wait for your dialer to start a call
+global OldCallWait   := 5000    ; after No Contact: the last call must end within this, or Owlman hangs it up
 global EnvelopeWait  := 1500    ; ms to wait for the email button before calling it a special lead
 global HangupSkipMs  := 3000    ; red hang-up button not found in this long = call's already over
 global ReloadWait    := 800     ; ms max to wait for a page reload before clicking No Contact
@@ -256,6 +257,8 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
             return Fail("")
         if (r = "none")
             return Fail("a call (your dialer didn't call the lead)")
+        if (r = "stuck")
+            return
         if (r = "call") {
             if !EmailShowing(env)       ; special lead: already dialing, it's yours
                 return Stopped() ? Fail("") : SpecialLead()
@@ -319,15 +322,8 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0, box := 0) {
             if !SpotVisible(red) {  ; the call ended by itself meanwhile
                 Log(" hangup: call already over")
             } else {
-                ClickAt(red[1], red[2], true)
-                Log(" hangup: clicked")
-                ; Make sure the call really ended: the red button goes away.
-                Loop 3 {
-                    if WaitGone(red, 700)
-                        break
-                    Log(" hangup: still showing, clicking again")
-                    ClickAt(red[1], red[2], true)
-                }
+                if !HangUpCall(red)
+                    return Stopped() ? Fail("") : Alert("Couldn't hang up - check the call!", "the call didn't end after 5 hang-up clicks")
             }
         } else {
             if Stopped()
@@ -358,16 +354,8 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0, box := 0) {
         CloseRedBox(box)
         if !Pause(Random(VDropFailPauseMin, VDropFailPauseMax), "Hanging up in")
             return Fail("")
-        if SpotVisible(red) {
-            ClickAt(red[1], red[2], true)
-            Log(" hangup: clicked")
-            Loop 3 {
-                if WaitGone(red, 700)
-                    break
-                Log(" hangup: still showing, clicking again")
-                ClickAt(red[1], red[2], true)
-            }
-        }
+        if SpotVisible(red) && !HangUpCall(red)
+            return Stopped() ? Fail("") : Alert("Couldn't hang up - check the call!", "the call didn't end after 5 hang-up clicks")
         if !WaitForSpot(noc, true, ReloadWait, NoContactWait)
             return Fail("No Contact button")
     }
@@ -384,6 +372,22 @@ HangUpAndNoContact(red, noc, hangUp, pauseMs := 0, box := 0) {
 ; or "" (stopped).
 WaitForCall(red, env, afterNoContact) {
     global CallStart := 0
+    ; The last lead's call must be over first, or it would look like the new one.
+    if (afterNoContact && SpotVisible(red)) {
+        Log("  waiting for the last call to end")
+        if !WaitCallOver(red, OldCallWait) {
+            if Stopped()
+                return ""
+            Log("  last call still up after " OldCallWait "ms - hanging it up")
+            if !HangUpCall(red) {
+                if Stopped()
+                    return ""
+                Alert("Couldn't hang up the last call - check it!", "the last call didn't end after 5 hang-up clicks")
+                return "stuck"
+            }
+        }
+        Log("  last call is over")
+    }
     start := A_TickCount, envGone := false
     callSettle := Random(CallSettleMin, CallSettleMax)
     Loop {
@@ -427,6 +431,37 @@ RingFor(red, n, ringMs) {
             return "ended"
         Sleep 20
     }
+}
+
+; Click the red hang-up button until the call is over. The moment the button
+; goes away counts: the dialer can start the NEXT call right after, and that one
+; must never be hung up. True = ended; false = still up after 5 clicks (or stopped).
+HangUpCall(red) {
+    Loop 5 {
+        if Stopped()
+            return false
+        if !SpotVisible(red)
+            return true
+        ClickAt(red[1], red[2], true)
+        Log(" hangup: clicked" (A_Index > 1 ? " (try " A_Index ")" : ""))
+        if WaitCallOver(red, 900)
+            return true
+    }
+    return false
+}
+
+; Wait up to ms for the call to be over: the red button goes away (if the next
+; call's button shows up right after, this call still ended).
+WaitCallOver(red, ms) {
+    stopAt := A_TickCount + ms
+    while (A_TickCount < stopAt) {
+        if Stopped()
+            return false
+        if !SpotVisible(red)
+            return true
+        Sleep 20
+    }
+    return false
 }
 
 ; Is the lead's email envelope there? Hovers it like the Win run does and gives

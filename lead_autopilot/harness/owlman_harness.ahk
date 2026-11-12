@@ -115,7 +115,12 @@ SetLayout() {
 }
 DropClick(*) {
     if (Scenario = "vd1num")
-        return Out("  [fake] " (TwoNums ? "voicemail DROPPED (two-number lead)" : "!!! clicked LEAD STATUS (wrong spot)"))
+    {
+        Out("  [fake] " (TwoNums ? "voicemail DROPPED (two-number lead)" : "!!! clicked LEAD STATUS (wrong spot)"))
+        if TwoNums
+            SetTimer () => (SetC(cRed, OFF), Out("  [fake] call ended after the drop")), -1200
+        return
+    }
     if (Scenario = "vdlate") {          ; the red box shows up late (2.5 s), call still up
         Out("  [fake] voicemail drop FAILED (red box comes 2.5 s later)")
         return SetTimer(() => SetC(cClose, CLOSEC), -2500)
@@ -124,8 +129,13 @@ DropClick(*) {
         Out("  [fake] voicemail drop FAILED (red box shown)")
         (Scenario = "vdfail") ? SetC(cRed, OFF) : 0
         SetTimer () => SetC(cClose, CLOSEC), -600
-    } else
+    } else {
         Out("  [fake] voicemail DROPPED")
+        if (Scenario != "vdstuck")      ; VanillaSoft ends your side of the call a moment later
+            SetTimer () => (SetC(cRed, OFF), Out("  [fake] call ended after the drop")), -1200
+        else
+            Out("  [fake] (this call will NOT end by itself)")
+    }
 }
 cDrop.OnEvent("Click", DropClick)
 cClose.OnEvent("Click", (*) => (Out("  [fake] red box closed"), SetC(cClose, OFF)))
@@ -167,10 +177,17 @@ NocClick(*) {
     Reload_()
     if (Scenario = "special" && CallNo = 1)        ; lead 2 is a special lead: no email button
         SetTimer () => SetC(cEnv, OFF), -600
-    if (Scenario != "noauto")           ; like the real dialer: calls the next lead by itself
-        SetTimer () => StartFakeCall("DIALER called the next lead"), -900
+    if (Scenario != "noauto")           ; like the real dialer: calls the next lead by itself,
+        SetTimer DialWhenFree, -900     ; but only once the last call is over
+
     if (CallNo >= 3)                    ; enough: someone "answers" and you tap a key
         SetTimer () => (Out("  [fake] someone answered, you tap a key"), Abort := true), -1500
+}
+
+DialWhenFree() {
+    if (PixelGetColor(300, 100) = RED)  ; old call still up: the dialer waits
+        return SetTimer(DialWhenFree, -200)
+    StartFakeCall("DIALER called the next lead")
 }
 
 WriteMainLog(line) {

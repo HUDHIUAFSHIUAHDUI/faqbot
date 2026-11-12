@@ -85,6 +85,8 @@ Brendan's VanillaSoft has a voicemail drop: **"Default"** with a voicemail icon,
 
 **Late red box (10/20):** after the red-box watch was cut to 1.5–2 s, a box that showed up later made Owlman think the drop worked, and the box then blocked No Contact. Now: after a "went through" drop, `WatchLateFail` keeps watching for the box during the 1–3 s wait before No Contact; and right before the No Contact click, `HangUpAndNoContact(..., box)` checks once more. Either way a late box is handled like a failed drop: Close, 1–3 s, hang up, No Contact. Harness `vdlate` (box after 2.5 s, call still up).
 
+**Old call mistaken for the next one (11/12):** after the 10/19 speed-ups (two 3 s waits cut) the last lead's call could still be up when Owlman looked for the next call, so it treated the old call as the new lead's. Now `WaitForCall` first waits up to `OldCallWait` (5 s) for the last call to end, then hangs it up itself (`HangUpCall`). Every hang-up uses `HangUpCall`: up to 5 clicks, done the moment the red button goes away (NOT "stays gone": the dialer starts the next call right after, and a second click hung up the new lead in testing). Can't end it = stop with "Couldn't hang up - check the call!". Harness: fake dialer only calls once the old call is over; a good drop ends the call 1.2 s later; `vdstuck` = the call never ends after the drop.
+
 ## Status
 - Ran on his tablet 09/30 (first real log). Dialing, hang-up and No Contact work. Email fixes from that log:
   - **Send was clicked twice on every email** (a good click takes ~2 s to clear on the tablet; `SendStuckMs` was 1 s). Now 4 s, max 3 tries. The main script has the same 1 s value; it was left unchanged.
