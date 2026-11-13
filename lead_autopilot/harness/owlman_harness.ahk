@@ -171,7 +171,7 @@ NocClick(*) {
     global Abort
     if (InStr(Scenario, "vd") = 1 && PixelGetColor(180, 360) = CLOSEC)
         return Out("  [fake] !!! No Contact clicked while the red box is open - BLOCKED")
-    if (Scenario = "vdlate" && PixelGetColor(300, 100) = RED)
+    if (InStr(Scenario, "vd") = 1 && PixelGetColor(300, 100) = RED)
         Out("  [fake] !!! No Contact clicked with the call still up")
     Out("  [fake] No Contact clicked -> next lead at " A_TickCount)
     Reload_()

@@ -77,7 +77,7 @@ global Abort := false, UserMoved := false, Running := false, RunStart := 0
 global UserStopped := false
 global CallStart := 0
 
-global OwlmanVersion := "Oct 13"
+global OwlmanVersion := "Nov 13"
 
 ; Close any other copy of Owlman that's still running (e.g. "owlman_dials (1).ahk"),
 ; so an old version can't keep answering Right Alt.
@@ -267,9 +267,9 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
             if !SendEmail(mail)
                 return
             if vd {
-                ; 3. Drop the voicemail. Worked: just No Contact. Failed: the red
-                ; box is closed, then hang up + No Contact. No voicemail button on
-                ; this lead: hang up + No Contact.
+                ; 3. Drop the voicemail, then ALWAYS hang up before No Contact.
+                ; Failed: the red box is closed first. No voicemail button on
+                ; this lead: just hang up + No Contact.
                 if !Pause(Random(VoicemailWaitMin, VoicemailWaitMax), "Voicemail in")
                     return Fail("")
                 Status(n, "dropping the voicemail...")
@@ -283,6 +283,13 @@ AutoDialLoop(red, noc, env, mail, vd := 0) {
                     if (r = "")
                         return Fail("")
                     if (r = "dropped") {
+                        ; hang up BEFORE No Contact, every time (the voicemail is already on its way)
+                        if SpotVisible(red) {
+                            Log(" hangup: call still up after the voicemail - hanging up")
+                            if !HangUpCall(red)
+                                return Stopped() ? Fail("") : Alert("Couldn't hang up - check the call!", "the call didn't end after 5 hang-up clicks")
+                        } else
+                            Log(" hangup: call already over")
                         if !HangUpAndNoContact(red, noc, false, 0, vd["close"])   ; wait already spent
                             return
                         afterNoContact := true
